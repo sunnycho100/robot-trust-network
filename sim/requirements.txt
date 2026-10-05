@@ -1,0 +1,5 @@
+mujoco
+numpy
+pillow
+python-dotenv
+openai
