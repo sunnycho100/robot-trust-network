@@ -22,9 +22,14 @@ def canonical(msg):
     return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
-def make_message(private_key, sender, receiver, request):
+def make_message(private_key, sender, receiver, request, **fields):
+    """Build a signed envelope; optional action/reason/demo fields are signed too."""
+    reserved = {"from", "to", "request", "time", "nonce", "sig"}
+    overlap = reserved.intersection(fields)
+    if overlap:
+        raise ValueError(f"reserved message fields cannot be overridden: {sorted(overlap)}")
     msg = {"from": sender, "to": receiver, "request": request,
-           "time": int(time.time()), "nonce": os.urandom(8).hex()}
+           **fields, "time": int(time.time()), "nonce": os.urandom(8).hex()}
     msg["sig"] = base64.b64encode(private_key.sign(canonical(msg))).decode()
     return msg
 

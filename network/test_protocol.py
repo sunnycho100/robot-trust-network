@@ -35,6 +35,11 @@ assert fresh().check(msg, now=msg["time"] + 61) == (False, "too old or from the 
 # Korean text signs and verifies the same way
 assert fresh().check(make_message(key_a, A, B, "상자 같이 옮겨 줘")) == (True, "ok")
 
+# Optional cross-brand action fields are covered by the same signature.
+action_msg = make_message(key_a, A, B, "copy my turn", action="mirror_motion", reason="inspection")
+assert fresh().check(action_msg) == (True, "ok")
+assert fresh().check({**action_msg, "action": "unlock_door"}) == (False, "bad signature")
+
 # Clock-skew gap: a message stamped 60 s ahead, replayed 70 s after arrival, is still in the window
 v = fresh()
 early = make_message(key_a, A, B, "hi")
