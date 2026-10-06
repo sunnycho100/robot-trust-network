@@ -14,6 +14,9 @@ Each household's robot sits on its own isolated network. A request from another 
 
 Start with [`docs/message-format.md`](docs/message-format.md). Both teams build against it, so change it only by agreement.
 
+For a presentation-ready MQTT story, start the link monitor and run
+`python network/demo.py --delay 0.9`; see [`network/README.md`](network/README.md#automatic-presentation-demo).
+
 ## Roadmap
 1. Two robots talk over a shared ROS 2 network
 2. Two isolated containers talk only through an MQTT broker, with signed messages

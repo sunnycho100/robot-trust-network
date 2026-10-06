@@ -45,6 +45,24 @@ brew install mosquitto
 
 This starts the broker (ports 1883 and 9001, this laptop only) and opens the page. Open the page before connecting the robots, since it only sees connections that happen while it is open.
 
+## Automatic presentation demo
+
+Instead of typing in two robot terminals, run the five-stage story after the
+broker/dashboard is ready:
+
+```bash
+python keygen.py                 # first run only
+python demo.py --delay 0.9
+```
+
+The monitor shows: discover → signed request → delayed verified response →
+blocked unsigned attack → authenticated cooperation. `--delay` is an explicit
+robot decision/reaction pause so the exchange is readable to an audience; it is
+not presented as measured broker latency. Robot B applies both layers: Ed25519,
+freshness and replay verification first, then the owner policy and trust score.
+Try `--trust 45` to see a `carry_together` request reduced to partial permission,
+or `--trust 10` to see it denied.
+
 ## Plan
 - **W1** Message format and Ed25519 sign and verify, with a test that one changed character fails
 - **W2** Key registry (`active` and `revoked`), replay protection with `time` and `nonce`, `to` check
