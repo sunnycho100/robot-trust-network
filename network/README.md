@@ -6,6 +6,34 @@ Message format: [`../docs/message-format.md`](../docs/message-format.md)
 
 ## Walkthroughs
 1. [MQTT basics: two houses talking through a broker](01-mqtt-basics.md)
+2. [Signed messages: proving who sent a request](02-signed-messages.md)
+
+## Signed robots (W1 and W2)
+
+Each robot signs what it sends and checks everything it receives: sender in the registry, valid signature, addressed to it, recent `time`, unseen `nonce`.
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python keygen.py          # key pair per robot + keys/registry.json (keys/ is never committed)
+python test_protocol.py   # checks the verifier without a broker
+```
+
+With the broker running (`./dashboard/start.sh`), one tab per robot. Type a line and press Enter to send it, signed, to the other robot:
+
+```bash
+python robot.py a
+python robot.py b
+```
+
+Attacks on robot B, each should be REJECTED:
+
+```bash
+python attack.py unsigned   # no signature
+python attack.py spoof      # signed with the attacker's own key
+python attack.py replay     # resend a real message from A (start it, then send from A)
+python attack.py tamper     # change a real message from A (start it, then send from A)
+```
 
 ## Link monitor
 A browser page showing which robots are connected, the messages between them and the broker log.

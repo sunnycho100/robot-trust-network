@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 sim/menagerie/
 sim/last_view.png
+network/keys/
