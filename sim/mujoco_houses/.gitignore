@@ -1,0 +1,7 @@
+.pytest_cache/
+MUJOCO_LOG.TXT
+
+# third_party/* are submodules; this one file is downloaded by scripts/fetch_assets.
+third_party/go1_policy.onnx
+# Exported by scripts/setup_robocasa_houses; mesh paths point into the local robocasa env.
+assets/houses/

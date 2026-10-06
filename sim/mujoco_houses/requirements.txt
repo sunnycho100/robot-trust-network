@@ -1,0 +1,9 @@
+mujoco>=3.3
+numpy>=1.26
+torch
+pyyaml
+onnxruntime
+pygame
+paho-mqtt>=2.1,<3
+cryptography
+pytest

@@ -24,3 +24,8 @@ On macOS the viewer needs `mjpython`, plain `python` will not open the window.
 ```
 .venv/bin/python test_sim.py
 ```
+
+## mujoco_houses
+Unitree G1/Go1 walking on published policies, talking through MQTT with signed
+`network/` requests: a basic WASD G1, a leader/follower duo (G1 or Go1 follower),
+and two RoboCasa houses in separate windows. See [`mujoco_houses/README.md`](mujoco_houses/README.md).

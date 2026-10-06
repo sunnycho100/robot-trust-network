@@ -1,0 +1,50 @@
+#!/bin/zsh
+# Check out only the published robot files the demos load (~35 MB) into third_party/.
+#   G1 12-DoF model + motion.pt   submodule unitreerobotics/unitree_rl_gym
+#   Go1 model                     submodule google-deepmind/mujoco_menagerie
+#   go1_policy.onnx               google-deepmind/mujoco_playground (single file)
+# Submodules are pinned by the superproject; this initialises them as shallow,
+# blob-less, sparse checkouts instead of the full repos (~700 MB).
+set -eu
+
+root="${0:A:h:h}/third_party"
+top="$(git -C "$root" rev-parse --show-toplevel)"
+
+sparse_submodule() {
+  local dir="$root/$1"
+  shift
+  local sm="${dir#$top/}"
+  if [[ ! -e "$dir/.git" ]]; then
+    local sha url
+    sha="$(git -C "$top" ls-files -s -- "$sm" | awk '{print $2}')"
+    url="$(git -C "$top" config -f .gitmodules "submodule.$sm.url")"
+    mkdir -p "$dir"
+    git -C "$dir" init -q
+    git -C "$dir" remote add origin "$url"
+    git -C "$dir" sparse-checkout set --no-cone "$@"
+    git -C "$dir" fetch -q --depth 1 --filter=blob:none origin "$sha"
+    git -C "$dir" checkout -q "$sha"
+    git -C "$top" submodule absorbgitdirs -- "$sm"
+    git -C "$top" submodule init -q -- "$sm"
+  else
+    git -C "$dir" sparse-checkout set --no-cone "$@"
+  fi
+}
+
+g1="resources/robots/g1_description"
+sparse_submodule unitree_rl_gym \
+  /deploy/deploy_mujoco/configs/g1.yaml /deploy/pre_train/g1/motion.pt \
+  "/$g1/scene.xml" "/$g1/g1_12dof.xml"
+meshes=("${(@f)$(grep -o 'file="[^"]*"' "$root/unitree_rl_gym/$g1/g1_12dof.xml" | sed -e 's/file="//' -e 's/"$//' | sort -u)}")
+git -C "$root/unitree_rl_gym" sparse-checkout add "${meshes[@]/#//$g1/meshes/}"
+
+sparse_submodule mujoco_menagerie /unitree_go1/
+
+onnx="$root/go1_policy.onnx"
+if [[ ! -f "$onnx" ]]; then
+  curl -fsSL -o "$onnx" \
+    https://raw.githubusercontent.com/google-deepmind/mujoco_playground/main/mujoco_playground/experimental/sim2sim/onnx/go1_policy.onnx
+fi
+echo "386cde6a1eac679e2f2a313ade2b395d9f26905b151ee3b019c2c4163d49b6f2  $onnx" | shasum -a 256 -c --quiet
+
+du -sh "$root/unitree_rl_gym" "$root/mujoco_menagerie" "$onnx"

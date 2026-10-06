@@ -1,0 +1,9 @@
+#!/bin/zsh
+# A G1 leader and a G1 or Go1 follower, linked only through the MQTT broker.
+#   ./scripts/run_duo                     G1 follows G1, WASD drives the leader
+#   ./scripts/run_duo --follower go1      Go1 follows G1
+#   ./scripts/run_duo --demo-mode story   scripted request, forged command, carry
+set -eu
+source "${0:A:h}/_env.zsh"
+require_broker
+exec "$demo_python" -m unitree_demo.duo "$@"

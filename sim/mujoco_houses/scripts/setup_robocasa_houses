@@ -1,0 +1,38 @@
+#!/bin/zsh
+# One-time setup for the two-house demo.
+# RoboCasa needs MuJoCo < 3.10, so it lives in its own conda env and is used
+# only to export kitchen MJCF. The demo itself runs in the lerobot env.
+set -eu
+
+repo_root="${0:A:h:h}"
+env_name="${ROBOCASA_ENV:-robocasa}"
+conda_bin="${CONDA_EXE:-$(command -v conda || echo /Users/seohee/miniforge3/bin/conda)}"
+
+if ! "$conda_bin" env list | awk '{print $1}' | grep -qx "$env_name"; then
+  "$conda_bin" create -y -n "$env_name" python=3.11
+fi
+env_python="$("$conda_bin" run -n "$env_name" python -c 'import sys; print(sys.executable)')"
+
+# Pinned submodules, checked out only when exporting (robosuite alone is ~600 MB).
+git -C "$repo_root" submodule update --init --depth 1 -- third_party/robosuite third_party/robocasa
+"$env_python" -m pip install --upgrade "$repo_root/third_party/robosuite"
+# Full RoboCasa requirements pull lerobot and training stacks; exporting a
+# kitchen needs only the scene builder.
+"$env_python" -m pip install --upgrade --no-deps "$repo_root/third_party/robocasa"
+"$env_python" -m pip install "mujoco==3.3.1" "numpy==2.2.5" "numba==0.61.2" "scipy==1.15.3" \
+  pyyaml lxml tqdm termcolor imageio h5py gymnasium
+
+robocasa_dir="$("$env_python" -c 'import importlib.util, os; print(os.path.dirname(importlib.util.find_spec("robocasa").origin))')"
+if [[ ! -f "$robocasa_dir/macros_private.py" ]]; then
+  cp "$robocasa_dir/macros.py" "$robocasa_dir/macros_private.py"
+fi
+
+# Furniture meshes and wall/floor textures only. Object packs are not needed.
+if [[ ! -d "$robocasa_dir/models/assets/textures" || -z "$(ls -A "$robocasa_dir/models/assets/textures" 2>/dev/null)" ]]; then
+  echo y | "$env_python" -m robocasa.scripts.download_kitchen_assets --type tex
+fi
+if [[ ! -d "$robocasa_dir/models/assets/fixtures/fridges" ]]; then
+  echo y | "$env_python" -m robocasa.scripts.download_kitchen_assets --type fixtures_lw
+fi
+
+"$env_python" "$repo_root/scripts/export_robocasa_houses.py" --out "$repo_root/assets/houses"

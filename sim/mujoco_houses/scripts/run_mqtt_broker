@@ -1,0 +1,9 @@
+#!/bin/zsh
+set -eu
+
+repo_root="${0:A:h:h}"
+if ! command -v mosquitto >/dev/null 2>&1; then
+  print -u2 "mosquitto is not installed. On macOS run: brew install mosquitto"
+  exit 1
+fi
+exec mosquitto -c "$repo_root/config/mosquitto/dev.conf" -v

@@ -1,0 +1,35 @@
+#!/bin/zsh
+# Two RoboCasa kitchens, one window each. They talk only through the MQTT broker.
+#   ./scripts/run_houses                  G1 in both houses
+#   ./scripts/run_houses --house1 go1     Go1 in house-1, G1 in house-2
+#   ./scripts/run_houses --trust 10       house-2 refuses the inspection too
+set -eu
+source "${0:A:h}/_env.zsh"
+
+house1_robot="g1"
+extra=()
+while (( $# )); do
+  case "$1" in
+    --house1) house1_robot="$2"; shift 2 ;;
+    *) extra+=("$1"); shift ;;
+  esac
+done
+if [[ "$house1_robot" != (g1|go1) ]]; then
+  print -u2 "--house1 must be g1 or go1"
+  exit 2
+fi
+if [[ ! -f "$repo_root/assets/houses/house-1.xml" || ! -f "$repo_root/assets/houses/house-2.xml" ]]; then
+  print -u2 "Kitchens are not exported yet. Run ./scripts/setup_robocasa_houses once."
+  exit 1
+fi
+require_broker
+
+pids=()
+trap 'kill ${pids[@]} 2>/dev/null || true' INT TERM EXIT
+# robot-b listens first so robot-a's first request is not lost.
+"$demo_python" -m unitree_demo.house_demo --house house-2 --robot g1 "${extra[@]}" &
+pids+=($!)
+sleep 4
+"$demo_python" -m unitree_demo.house_demo --house house-1 --robot "$house1_robot" "${extra[@]}" &
+pids+=($!)
+wait

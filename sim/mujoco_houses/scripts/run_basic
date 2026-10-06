@@ -1,0 +1,5 @@
+#!/bin/zsh
+# One G1 on its published policy. Hold WASD/QE in the input window.
+set -eu
+source "${0:A:h}/_env.zsh"
+exec "$demo_python" -m unitree_demo.basic "$@"
