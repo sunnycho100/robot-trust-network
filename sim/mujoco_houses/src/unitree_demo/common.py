@@ -39,7 +39,9 @@ class HumanCommandInput:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.bind(("127.0.0.1", 0))
         self.socket.setblocking(False)
-        command = [str(Path(sys.executable).with_name("python")), "-m", "unitree_demo.input_bridge",
+        py_name = "python.exe" if os.name == "nt" else "python"
+        py = Path(sys.executable).with_name(py_name)
+        command = [str(py if py.is_file() else Path(sys.executable)), "-m", "unitree_demo.input_bridge",
                    "--port", str(self.socket.getsockname()[1]), "--title", title]
         if duo:
             command.append("--duo")
