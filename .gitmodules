@@ -1,0 +1,16 @@
+[submodule "sim/mujoco_houses/third_party/unitree_rl_gym"]
+	path = sim/mujoco_houses/third_party/unitree_rl_gym
+	url = https://github.com/unitreerobotics/unitree_rl_gym.git
+	shallow = true
+[submodule "sim/mujoco_houses/third_party/mujoco_menagerie"]
+	path = sim/mujoco_houses/third_party/mujoco_menagerie
+	url = https://github.com/google-deepmind/mujoco_menagerie.git
+	shallow = true
+[submodule "sim/mujoco_houses/third_party/robosuite"]
+	path = sim/mujoco_houses/third_party/robosuite
+	url = https://github.com/ARISE-Initiative/robosuite.git
+	shallow = true
+[submodule "sim/mujoco_houses/third_party/robocasa"]
+	path = sim/mujoco_houses/third_party/robocasa
+	url = https://github.com/robocasa/robocasa.git
+	shallow = true
