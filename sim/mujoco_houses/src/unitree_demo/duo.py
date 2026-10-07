@@ -308,6 +308,17 @@ def follower_command(message, follower_position_xy, follower_yaw, follow_distanc
     return command
 
 
+# Head cameras, looking forward along the body's +x axis.
+HEAD_CAMERAS = {"g1": ("pelvis", (0.1, 0, 0.45)), "go1": ("trunk", (0.3, 0, 0.05))}
+CAMERA_SIZE = (180, 240)  # height, width of each picture-in-picture view
+
+
+def add_head_camera(spec: mujoco.MjSpec, robot: str) -> mujoco.MjSpec:
+    body, pos = HEAD_CAMERAS[robot]
+    spec.body(body).add_camera(name="head_cam", pos=pos, xyaxes=(0, -1, 0, 0, 0, 1), fovy=70)
+    return spec
+
+
 def build_duo_model(cfg: G1Config, follow_distance: float, follower: str) -> mujoco.MjModel:
     arena = mujoco.MjSpec.from_string("""
       <mujoco model="Unitree MQTT leader follower">
@@ -322,14 +333,14 @@ def build_duo_model(cfg: G1Config, follow_distance: float, follower: str) -> muj
           <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/></worldbody>
       </mujoco>
     """)
-    arena.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml)), prefix="leader_",
+    arena.attach(add_head_camera(mujoco.MjSpec.from_file(str(cfg.robot_xml)), "g1"), prefix="leader_",
                  frame=arena.worldbody.add_frame(name="leader_spawn"))
     # The follower starts facing across the leader's path, so its own walk and
     # the later turn into formation are easy to see.
     frame = arena.worldbody.add_frame(name="follower_spawn", pos=(-follow_distance, 0, 0),
                                       quat=(math.sqrt(0.5), 0, 0, -math.sqrt(0.5)))
     robot = mujoco.MjSpec.from_file(str(cfg.robot_xml)) if follower == "g1" else load_go1_spec()
-    arena.attach(robot, prefix="follower_", frame=frame)
+    arena.attach(add_head_camera(robot, follower), prefix="follower_", frame=frame)
     model = arena.compile()
     model.opt.timestep = cfg.simulation_dt
     for geom_id, body_id in enumerate(model.geom_bodyid):
@@ -370,6 +381,17 @@ def update_speech_labels(viewer, data, leader, follower, leader_text, follower_t
             geom.label = text
 
 
+def show_head_cameras(viewer, renderer, data) -> None:
+    """Overlay each robot's head camera in the bottom corners of the viewer."""
+    height, width = CAMERA_SIZE
+    right = viewer.viewport.width - width if viewer.viewport else 0
+    images = []
+    for camera, left in (("leader_head_cam", 0), ("follower_head_cam", right)):
+        renderer.update_scene(data, camera=camera)
+        images.append((mujoco.MjrRect(left, 0, width, height), renderer.render()))
+    viewer.set_images(images)
+
+
 def run(args) -> None:
     cfg = load_g1_config()
     model = build_duo_model(cfg, args.follow_distance, args.follower)
@@ -382,8 +404,9 @@ def run(args) -> None:
     mqtt_link = MqttFormationLink(args)
     fixed_command = np.asarray(args.command, dtype=np.float32)
     human_input = None if args.headless else HumanCommandInput(f"G1 leader + {name} follower", duo=True)
-    viewer = None
+    viewer = renderer = None
     if not args.headless:
+        renderer = mujoco.Renderer(model, *CAMERA_SIZE)
         from mujoco import viewer as mj_viewer
         viewer = mj_viewer.launch_passive(model, data)
         viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
@@ -506,6 +529,8 @@ def run(args) -> None:
                 })
             if viewer:
                 update_speech_labels(viewer, data, leader, follower, leader_text, follower_text)
+                if counter % (cfg.control_decimation * 5) == 0:  # ponytail: 10 Hz camera, raise if the Mac keeps up
+                    show_head_cameras(viewer, renderer, data)
                 viewer.sync()
                 remaining = cfg.simulation_dt - (time.monotonic() - step_start)
                 if remaining > 0:
@@ -515,6 +540,8 @@ def run(args) -> None:
     finally:
         if viewer:
             viewer.close()
+        if renderer:
+            renderer.close()
         if human_input:
             human_input.close()
         mqtt_link.close()
