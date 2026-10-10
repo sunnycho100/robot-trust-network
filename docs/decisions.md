@@ -135,3 +135,59 @@ Entry format:
 ## Decisions made during the autonomous run
 
 (The agent appends here, each marked `needs review`.)
+
+### D13. QoS 1 for the container households (settles D9 for this harness)
+- Date, by: 2026-10-10, Claude (autonomous run, M1)
+- Decision: every publish in `network/scenarios/` uses QoS 1, so the broker acknowledges it.
+- Alternatives: QoS 0 (fire and forget, losses are silent); QoS 2 (exactly once, an extra round trip per message).
+- Why: the acknowledgement is how house 1 notices a dead link quickly (M5). A copy the broker redelivers is rejected by the nonce check as `replay`, so "at least once" never turns into "acted twice".
+- Revisit if: the replay rejections from redelivery clutter the owner log. `robot.py` is still QoS 0.
+- Status: needs review
+
+### D14. One Docker network per house, broker attached to all of them
+- Date, by: 2026-10-10, Claude (autonomous run, M1)
+- Decision:
+  - `house1`, `house2` and `house3` are separate Docker networks marked `internal` (no internet).
+  - Each house container joins only its own network, and only the broker joins all three.
+  - A house can therefore reach the broker but not another house, and S11 checks this both by IP and by name.
+- Alternatives:
+  - one shared network with firewall rules: isolation would depend on rules being right;
+  - a gateway container per house in front of a robot container: closer to a real home router, but double the containers for no new test;
+  - separate VMs: heavy;
+  - ROS 2 `ROS_DOMAIN_ID` per house: separates topics, not the network.
+- Why: real network separation with the fewest moving parts.
+- Revisit if: a house needs its own robots talking locally (then add a per-house local network or bridge).
+- Status: needs review
+
+### D15. The runner lives on the host and drives house 1 with `docker compose exec`
+- Date, by: 2026-10-10, Claude (autonomous run, M1)
+- Decision:
+  - `network/scenarios/run.py` (standard library only) builds the image, makes keys, starts the houses and runs each scenario.
+  - House 1's side runs as `client.py` commands inside the house-1 container.
+  - The receiving houses append to `events.jsonl` in their state folder, which the runner reads.
+- Alternatives:
+  - a runner inside house 1: it could not cut house 1's own link or play house 2's owner;
+  - a separate test container on the broker networks: it would break the isolation the test checks;
+  - pytest: an extra dependency on the host.
+- Why: the host is the only place that can act as every owner and as the network itself, without punching holes in the isolation.
+- Status: needs review
+
+### D16. Fresh keys per run, each house gets only its own
+- Date, by: 2026-10-10, Claude (autonomous run, M1)
+- Decision:
+  - `keygen.py` runs in a container with no network and writes `.run/<house>/`, which is gitignored.
+  - Each folder holds only that house's private keys, a registry of the robots it has paired with, and its owner rules.
+  - Each house mounts only its own folder.
+- Alternatives: reuse `network/keys/` (shared by every robot, so no isolation of secrets); bake the keys into the image (leaks into image layers).
+- Why: matches D7 (one registry per house) and keeps one house's secrets out of the others.
+- Status: needs review
+
+### D17. Three houses and two robots in house 1
+- Date, by: 2026-10-10, Claude (autonomous run, M1)
+- Decision:
+  - House 1 has robot A (a trusted neighbor, starting trust 70) and robot D (newly paired, starting trust 0).
+  - House 2 has robot B with default rules.
+  - House 3 has robot C with stricter rules (`join_route` needs 90).
+- Alternatives: one receiving house whose rules are swapped between runs, which would not show two owners disagreeing at the same time; an unregistered robot for S5, which the fixed receive checks reject outright (`unknown sender`), so "information only" needs a paired robot with zero trust.
+- Why: S2 needs two owners with different rules, and S5 and S6 need a robot that starts with no trust.
+- Status: needs review
