@@ -50,10 +50,12 @@ def wait_events(house, nonce, count=1, timeout=3.0):
 
 
 def setup():
+    os.environ.update(HOST_UID=str(os.getuid()), HOST_GID=str(os.getgid()))
     shutil.rmtree(RUN_DIR, ignore_errors=True)
     os.makedirs(RUN_DIR)
     sh("docker", "build", "-q", "-t", "trust-net-house", "-f", os.path.join(HERE, "Dockerfile"), os.path.dirname(HERE))
-    sh("docker", "run", "--rm", "--network", "none", "-v", f"{RUN_DIR}:/out", "trust-net-house", "python", "keygen.py", "/out")
+    sh("docker", "run", "--rm", "--network", "none", "--user", f"{os.getuid()}:{os.getgid()}",
+       "-v", f"{RUN_DIR}:/out", "trust-net-house", "python", "keygen.py", "/out")
     sh(*COMPOSE, "up", "-d")
     for _ in range(50):  # wait until both receiving houses are online
         if all(any(e["kind"] == "online" for e in events(h)) for h in ("house-2", "house-3")):
@@ -121,7 +123,7 @@ def netem(service, spec=None):
     """Add delay and loss to a house's outgoing link, or clear it."""
     cmd = ["tc", "qdisc", "replace", "dev", "eth0", "root", "netem", *spec.split()] if spec else \
           ["tc", "qdisc", "del", "dev", "eth0", "root"]
-    sh(*COMPOSE, "exec", "-T", service, *cmd, check=bool(spec))
+    sh(*COMPOSE, "exec", "-T", "-u", "0", service, *cmd, check=bool(spec))  # tc needs root in the container
 
 
 def unplug(service, plugged):
@@ -325,6 +327,7 @@ def numbers():
 
 
 def main():
+    began = time.monotonic()
     try:
         setup()
         rows = []
@@ -336,9 +339,12 @@ def main():
             rows.append((sid, name, expected, got, passed))
             print(f"{'PASS' if passed else 'FAIL'}  {sid:<4} {name}\n      expected: {expected}\n      got:      {got}", flush=True)
         failed = [r for r in rows if not r[4]]
+        print(f"\n{'ID':<5}{'Scenario':<50}Result")
+        for sid, name, _expected, _got, passed in rows:
+            print(f"{sid:<5}{name:<50}{'PASS' if passed else 'FAIL'}")
         print()
         numbers()
-        print(f"\n{len(rows) - len(failed)} of {len(rows)} scenarios passed")
+        print(f"\n{len(rows) - len(failed)} of {len(rows)} scenarios passed in {time.monotonic() - began:.0f} s")
         return 1 if failed else 0
     finally:
         if "--keep" not in sys.argv:

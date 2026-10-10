@@ -327,3 +327,10 @@ Entry format:
 - Alternatives: count a request lost to the network as "safe request not allowed". The first M5 run did this and showed 22 of 24, which blamed the decision layer for packet loss.
 - Why: keeps the two questions apart: did the house decide right, and what happened when the network broke.
 - Status: needs review
+
+### D32. Houses run as the host user, `tc` runs as root
+- Date, by: 2026-10-10, Claude (autonomous run, M6)
+- Decision: containers run as the uid and gid of whoever ran `run.sh`, so `.run/` never fills with root-owned files on Linux or WSL. Only the `tc` commands exec as root, and only house 1 and house 2 have `NET_ADMIN` (D28).
+- Alternatives: run everything as root (the next run fails to delete `.run/` on Linux); keep state in Docker volumes (the runner could no longer read the event logs directly).
+- Why: Seohee runs scripts under WSL, where root-owned files would break the second run.
+- Status: needs review

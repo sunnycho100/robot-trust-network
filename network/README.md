@@ -63,10 +63,22 @@ freshness and replay verification first, then the owner policy and trust score.
 Try `--trust 45` to see a `carry_together` request reduced to partial permission,
 or `--trust 10` to see it denied.
 
+## Scenario runner (three households in Docker)
+
+With Docker running:
+
+```bash
+./scenarios/run.sh
+```
+
+It builds one image, gives each house its own keys and rules, and starts house 1 (robots A and D), house 2 (robot B), house 3 (robot C, stricter rules) and the broker, each house on its own network. Then it runs scenarios S1 to S11 from [`../docs/network-goal.md`](../docs/network-goal.md): signed requests, forgeries, trust rising and falling, revocation mid-task, delay and loss, cut links, and isolation. It prints a pass table and the numbers, and exits 0 only if everything passes (about a minute). Add `--keep` to leave the containers up.
+
+Every design choice behind it is in [`../docs/decisions.md`](../docs/decisions.md).
+
 ## Plan
 - **W1** Message format and Ed25519 sign and verify, with a test that one changed character fails
 - **W2** Key registry (`active` and `revoked`), replay protection with `time` and `nonce`, `to` check
-- **W3** Two house containers and one Mosquitto broker on separate Docker networks, one full request and signed reply
-- **W4** Spoof, tamper, replay and eavesdrop tests, plus delay and packet loss with `tc netem`
+- **W3** Two house containers and one Mosquitto broker on separate Docker networks, one full request and signed reply (done, `scenarios/`)
+- **W4** Spoof, tamper, replay and eavesdrop tests, plus delay and packet loss with `tc netem` (done except eavesdrop, see D12)
 
 Stack: Python, `cryptography`, Mosquitto, Docker.

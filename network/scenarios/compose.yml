@@ -5,6 +5,7 @@ name: trust-net
 x-house: &house
   image: trust-net-house            # built once by run.py
   pull_policy: never
+  user: "${HOST_UID:-0}:${HOST_GID:-0}"  # files in .run stay owned by whoever ran run.sh (Linux, WSL)
   depends_on: [broker]
   environment: { BROKER: broker }
 
