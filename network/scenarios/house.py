@@ -1,6 +1,6 @@
-"""A receiving household: verify every message, then reply signed. Run: python house.py robot-b@house-2"""
+"""A receiving household: verify, decide, reply signed. Run: python house.py robot-b@house-2"""
 import json, os, sys, threading, time
-import protocol
+import policy, protocol
 from common import QOS, STATE, connect, log, parse
 
 
@@ -12,7 +12,12 @@ class House:
         self.registry_mtime = None
         self.reload_registry()
         self.verifier = protocol.Verifier(me, self.registry)
+        with open(os.path.join(STATE, "rules.json")) as f:
+            self.rules = json.load(f)
         self.lock = threading.Lock()
+
+    def trust_of(self, robot):
+        return self.rules["trust"].get(robot, 0)
 
     def reload_registry(self):
         """The owner edits registry.json by hand; pick changes up without a restart."""
@@ -30,12 +35,19 @@ class House:
             start = time.perf_counter()
             ok, reason = self.verifier.check(msg)
             verify_ms = (time.perf_counter() - start) * 1000
-        sender = msg.get("from") if isinstance(msg, dict) else None
-        action = msg.get("action") if isinstance(msg, dict) else None
-        log({"kind": "verdict", "to": self.me, "from": sender, "action": action,
-             "ok": ok, "reason": reason, "verify_ms": verify_ms})
-        if ok:
-            self.reply(client, msg, "ACCEPTED", reason)
+            fields = msg if isinstance(msg, dict) else {}
+            event = {"kind": "verdict", "to": self.me, "from": fields.get("from"), "action": fields.get("action"),
+                     "nonce": fields.get("nonce"), "ok": ok, "result": "REJECTED", "reason": reason,
+                     "verify_ms": verify_ms}
+            if ok and msg.get("kind") == "request":
+                start = time.perf_counter()
+                decision = policy.decide(msg, self.trust_of(msg["from"]), self.rules)
+                event.update(result=decision.result, reason=decision.reason,
+                             trust=self.trust_of(msg["from"]), decide_ms=(time.perf_counter() - start) * 1000)
+            log(event)
+        # Only verified requests get an answer; a forged message gets silence, not a signed echo.
+        if ok and msg.get("kind") == "request":
+            self.reply(client, msg, event["result"], event["reason"])
 
     def reply(self, client, msg, result, reason, **fields):
         signed = protocol.make_message(self.key, self.me, msg["from"], result, kind="response",

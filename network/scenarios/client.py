@@ -1,5 +1,6 @@
 """House 1's side of each scenario. Prints one JSON line. Run inside the house-1 container."""
 import argparse, json, socket, sys, threading, time
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 import protocol
 from common import QOS, connect, parse
 
@@ -37,6 +38,32 @@ def request(sender, receiver, action, text="", timeout=3.0, key=None, **fields):
             "reply_matches": reply["reply_to"] == msg["nonce"] and reply["from"] == receiver}
 
 
+def attack(kind, sender, receiver, other):
+    """Publish one hostile message to receiver's inbox. Prints its nonce so the runner can find the verdict."""
+    real = protocol.make_message(protocol.load_private_key(sender), sender, receiver, "status",
+                                 action="status", kind="request")
+    if kind == "unsigned":
+        msg = {k: v for k, v in real.items() if k != "sig"}
+    elif kind == "spoof":    # claims to be sender, signed with a key nobody paired
+        msg = protocol.make_message(Ed25519PrivateKey.generate(), sender, receiver, "status",
+                                    action="status", kind="request")
+    elif kind == "tamper":   # a real signature, then the action changed on the way
+        msg = dict(real, action="unlock_door")
+    elif kind == "wrong_to":  # really signed by sender, but for another robot, bounced here
+        msg = protocol.make_message(protocol.load_private_key(sender), sender, other, "status",
+                                    action="status", kind="request")
+    else:                    # replay: the genuine message, sent twice
+        msg = real
+    client = connect(f"stranger-{time.monotonic_ns()}")
+    copies = 2 if kind == "replay" else 1
+    for _ in range(copies):
+        client.publish(protocol.inbox(receiver), json.dumps(msg), qos=QOS).wait_for_publish(2)
+        time.sleep(0.3)
+    client.loop_stop()
+    client.disconnect()
+    return {"nonce": msg["nonce"], "copies": copies}
+
+
 def probe(host, port):
     """Can this house open a TCP connection to host? Refused still means the host is reachable."""
     try:
@@ -54,11 +81,16 @@ def main():
     r = sub.add_parser("request")
     r.add_argument("sender"); r.add_argument("receiver"); r.add_argument("action")
     r.add_argument("--timeout", type=float, default=3.0)
+    at = sub.add_parser("attack")
+    at.add_argument("kind", choices=["unsigned", "spoof", "tamper", "wrong_to", "replay"])
+    at.add_argument("sender"); at.add_argument("receiver"); at.add_argument("other")
     pr = sub.add_parser("probe")
     pr.add_argument("host"); pr.add_argument("port", type=int)
     a = p.parse_args()
     if a.cmd == "request":
         out = request(a.sender, a.receiver, a.action, timeout=a.timeout)
+    elif a.cmd == "attack":
+        out = attack(a.kind, a.sender, a.receiver, a.other)
     else:
         out = probe(a.host, a.port)
     print(json.dumps(out))

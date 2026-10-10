@@ -39,6 +39,16 @@ Draft for the network and simulation teams to agree on. Fields can change until 
 4. `time` is within ±60 s of my clock
 5. `nonce` not seen before. Keep each nonce until its own `time` + 60 s has passed (not 60 s after it arrived, which leaves a gap when clocks differ)
 
+## Optional signed fields
+Added by agreement; all are covered by the signature like everything else.
+
+| Field | Meaning |
+|---|---|
+| `kind` | `request`, `response`, `pose` or `step`. A receiver only decides on `request` |
+| `reply_to` | In a `response`: the `nonce` of the request it answers, so a reply cannot be moved onto another request |
+| `result` | In a `response`: `ALLOW`, `PARTIAL` or `DENY` |
+| `task` | In a `step`: the `nonce` of the request that started the task |
+
 ## Result passed to the decide step
 ```json
 {

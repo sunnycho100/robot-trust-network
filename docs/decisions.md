@@ -191,3 +191,26 @@ Entry format:
 - Alternatives: one receiving house whose rules are swapped between runs, which would not show two owners disagreeing at the same time; an unregistered robot for S5, which the fixed receive checks reject outright (`unknown sender`), so "information only" needs a paired robot with zero trust.
 - Why: S2 needs two owners with different rules, and S5 and S6 need a robot that starts with no trust.
 - Status: needs review
+
+### D18. Owner rules can only make a house stricter
+- Date, by: 2026-10-10, Claude (autonomous run, M2)
+- Decision: `decide(message, trust, rules)` takes one owner's `never` list and `minimum` thresholds. An owner can forbid more actions or raise a threshold, but cannot lower one below the default or unforbid `unlock_door`.
+- Alternatives: rules fully replace the defaults (an owner could set `unlock_door` to trust 0); one global rule set (S2 cannot exist).
+- Why: the defaults act as a safety floor every brand ships with, and owners tune upward.
+- Revisit if: owners need to open up an action for one specific trusted robot (then add per-robot grants, not lower floors).
+- Status: needs review
+
+### D19. A rejected message gets no reply
+- Date, by: 2026-10-10, Claude (autonomous run, M2)
+- Decision: only messages that pass every receive check get a signed response. Everything else is logged in the house and answered with silence.
+- Alternatives: reply "rejected, reason X" to the claimed sender.
+- Why: a reply to a forged message would be a signed echo that an attacker can trigger at will, and it tells the attacker which check stopped them. The sender of a real request that times out treats it as DENY.
+- Revisit if: honest robots with a broken clock need to learn why they are being ignored (an owner notification fits better than a network reply).
+- Status: needs review
+
+### D20. Responses carry `reply_to`, `result` and `reason` as signed fields
+- Date, by: 2026-10-10, Claude (autonomous run, M2)
+- Decision: a response is a normal signed envelope with `kind: response` and `reply_to` set to the request's nonce. The requester accepts it only if it verifies and `reply_to` matches a request it actually sent. Added to `message-format.md`.
+- Alternatives: correlate by topic only (any signed reply could be matched to any open request); unsigned replies (anyone could answer for house 2).
+- Why: the same checks in both directions, and a reply cannot be replayed onto a different request.
+- Status: needs review

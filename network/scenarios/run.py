@@ -1,10 +1,15 @@
 """Scenario runner. Builds the households, runs every scenario, prints the table. Host side, stdlib only."""
-import json, os, shutil, subprocess, sys, time
+import json, os, shutil, statistics, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 COMPOSE = ["docker", "compose", "-f", os.path.join(HERE, "compose.yml")]
 RUN_DIR = os.path.join(HERE, ".run")
 A, D, B, C = "robot-a@house-1", "robot-d@house-1", "robot-b@house-2", "robot-c@house-3"
+TALLY = []  # (should_allow, was_allowed) for every request a scenario judged
+
+
+def judge(should_allow, result):
+    TALLY.append((should_allow, result == "ALLOW"))
 
 
 def sh(*args, check=True):
@@ -31,6 +36,16 @@ def events(house):
         return []
     with open(path) as f:
         return [json.loads(line) for line in f]
+
+
+def wait_events(house, nonce, count=1, timeout=3.0):
+    """The verdict events a house logged for one message nonce."""
+    deadline = time.monotonic() + timeout
+    while True:
+        found = [e for e in events(house) if e.get("nonce") == nonce]
+        if len(found) >= count or time.monotonic() > deadline:
+            return found
+        time.sleep(0.1)
 
 
 def setup():
@@ -64,9 +79,75 @@ def s11_isolation():
     return "house 2 unreachable, broker path works", got, passed
 
 
+def short(r):
+    return f"{r['result']} ({r['reason']})"
+
+
+def s1_neighbor_allowed():
+    r = client("request", A, B, "join_route")
+    judge(True, r["result"])
+    return ("ALLOW, signed reply to this exact request",
+            f"{short(r)}, reply matches request: {r.get('reply_matches')}",
+            r["result"] == "ALLOW" and r.get("reply_matches") is True)
+
+
+def s2_owners_differ():
+    b, c = client("request", A, B, "join_route"), client("request", A, C, "join_route")
+    judge(True, b["result"])
+    judge(False, c["result"])
+    return ("house 2 ALLOW, house 3 PARTIAL or DENY", f"house 2 {short(b)}, house 3 {short(c)}",
+            b["result"] == "ALLOW" and c["result"] in ("PARTIAL", "DENY"))
+
+
+def s3_forbidden_at_full_trust():
+    r = client("request", A, C, "unlock_door")  # house 3 trusts A at 100
+    judge(False, r["result"])
+    return "DENY even at trust 100", short(r), r["result"] == "DENY"
+
+
+def s4_forged_messages():
+    expected = {"unsigned": "no signature", "spoof": "bad signature", "tamper": "bad signature",
+                "wrong_to": "not addressed to me", "replay": "replay"}
+    got = {}
+    for kind in expected:
+        sent = client("attack", kind, A, B, C)
+        found = wait_events("house-2", sent["nonce"], sent["copies"])
+        last = found[-1] if found else None  # for replay, the second copy is the attack
+        got[kind] = last["reason"] if last else "no verdict"
+        judge(False, "ALLOW" if last and last["ok"] else "REJECTED")
+    return ("all REJECTED: " + ", ".join(f"{k} {v}" for k, v in expected.items()),
+            ", ".join(f"{k} {v}" for k, v in got.items()), got == expected)
+
+
+def s5_new_robot_information_only():
+    info, light = client("request", D, B, "status"), client("request", D, B, "turn_on_light")
+    judge(True, info["result"])
+    judge(False, light["result"])
+    return ("status ALLOW, turn_on_light DENY", f"status {short(info)}, turn_on_light {short(light)}",
+            info["result"] == "ALLOW" and light["result"] == "DENY")
+
+
 SCENARIOS = [
+    ("S1", "Known neighbor asks within its trust", s1_neighbor_allowed),
+    ("S2", "Same request, stricter house", s2_owners_differ),
+    ("S3", "Forbidden action at maximum trust", s3_forbidden_at_full_trust),
+    ("S4", "Unsigned, spoofed, tampered, wrong to, replayed", s4_forged_messages),
+    ("S5", "New robot asks for information", s5_new_robot_information_only),
     ("S11", "House 1 tries to reach house 2 directly", s11_isolation),
 ]
+
+
+def numbers():
+    blocked = [allowed for should, allowed in TALLY if not should]
+    allowed = [allowed for should, allowed in TALLY if should]
+    print(f"unsafe requests blocked: {blocked.count(False)} of {len(blocked)}")
+    print(f"safe requests allowed:   {allowed.count(True)} of {len(allowed)}")
+    costs = [e["verify_ms"] + e.get("decide_ms", 0) for h in ("house-2", "house-3")
+             for e in events(h) if e["kind"] == "verdict" and e["ok"]]
+    if len(costs) >= 2:
+        p95 = statistics.quantiles(costs, n=20)[-1]
+        print(f"verify and decide time:  median {statistics.median(costs):.2f} ms, p95 {p95:.2f} ms "
+              f"over {len(costs)} accepted messages")
 
 
 def main():
@@ -81,6 +162,8 @@ def main():
             rows.append((sid, name, expected, got, passed))
             print(f"{'PASS' if passed else 'FAIL'}  {sid:<4} {name}\n      expected: {expected}\n      got:      {got}", flush=True)
         failed = [r for r in rows if not r[4]]
+        print()
+        numbers()
         print(f"\n{len(rows) - len(failed)} of {len(rows)} scenarios passed")
         return 1 if failed else 0
     finally:
