@@ -4,6 +4,8 @@ import policy, protocol
 from common import QOS, STATE, connect, log, parse
 
 GAIN, PENALTY = 5, 20  # trust points for a clean interaction, and for asking for a forbidden action
+TASK_ACTIONS = {"join_route", "mirror_motion", "carry_together"}  # keep going only while signed steps arrive
+STALE_S = 1.0  # a task stops if no valid step arrives for this long
 
 
 class House:
@@ -23,6 +25,7 @@ class House:
         else:
             self.trust = dict(self.rules["trust"])  # the owner's starting scores
         self.last_gain = {}
+        self.task = None
         self.lock = threading.Lock()
 
     def trust_of(self, robot):
@@ -72,10 +75,43 @@ class House:
                 decide_ms = (time.perf_counter() - start) * 1000
                 event.update(result=decision.result, reason=decision.reason, trust=self.trust_of(msg["from"]),
                              decide_ms=decide_ms, trust_change=self.learn(msg["from"], decision, msg.get("action")))
+            if ok and msg.get("kind") == "step" and self.task and msg.get("task") == self.task["id"] \
+                    and msg["from"] == self.task["from"]:
+                self.task["last_step"] = time.monotonic()
+                self.task["steps"] += 1
+                if msg.get("done"):
+                    self.stop_task("finished")
+                return  # steps are not logged one by one
             log(event)
+            if ok and msg.get("kind") == "request" and event["result"] != "DENY" and msg.get("action") in TASK_ACTIONS:
+                if self.task:
+                    self.stop_task("replaced by a new task")
+                self.task = {"id": msg["nonce"], "from": msg["from"], "action": msg["action"],
+                             "result": event["result"], "last_step": time.monotonic(), "steps": 0}
+                log({"kind": "task_started", "from": msg["from"], "action": msg["action"], "task": msg["nonce"]})
         # Only verified requests get an answer; a forged message gets silence, not a signed echo.
         if ok and msg.get("kind") == "request":
             self.reply(client, msg, event["result"], event["reason"])
+
+    def stop_task(self, reason):
+        """Back to the safe default: stop moving. Caller holds the lock."""
+        task, self.task = self.task, None
+        log({"kind": "task_stopped", "from": task["from"], "action": task["action"], "task": task["id"],
+             "reason": reason, "steps": task["steps"]})
+
+    def watchdog(self):
+        """Stop a running task the moment its sender is revoked or its steps go quiet."""
+        while True:
+            time.sleep(0.05)
+            with self.lock:
+                if self.task is None:
+                    continue
+                self.reload_registry()
+                entry = self.registry.get(self.task["from"])
+                if entry is None or entry["status"] != "active":
+                    self.stop_task("sender key revoked")
+                elif time.monotonic() - self.task["last_step"] > STALE_S:
+                    self.stop_task("step stream went quiet")
 
     def reply(self, client, msg, result, reason, **fields):
         signed = protocol.make_message(self.key, self.me, msg["from"], result, kind="response",
@@ -87,8 +123,7 @@ def main(me):
     house = House(me)
     connect(me, [protocol.inbox(me)], house.on_message)
     log({"kind": "online", "robot": me})
-    while True:
-        time.sleep(1)
+    house.watchdog()
 
 
 if __name__ == "__main__":

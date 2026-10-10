@@ -253,3 +253,39 @@ Entry format:
 - Why: penalize what every robot is expected to know, not one owner's private settings.
 - Revisit if: owners publish their rules, so visitors could know them in advance.
 - Status: needs review
+
+### D25. A task stays alive only while signed steps keep arriving
+- Date, by: 2026-10-10, Claude (autonomous run, M4)
+- Decision:
+  - An allowed `join_route`, `mirror_motion` or `carry_together` starts a task.
+  - The requester then sends signed `kind: step` messages naming the task (10 a second in the test), and each step passes the full receive checks.
+  - The receiver stops the task if no valid step arrives for 1 s (`STALE_S`), if a step says `done`, or if a new task replaces it.
+- Alternatives:
+  - grant once, then run until the requester says stop: a lost link leaves the robot moving;
+  - a fixed duration in the request: no way to stop early;
+  - a lease the requester renews every few seconds: fewer messages, slower to stop.
+- Why: this is the same pattern as the signed pose stream in the duo demo (D10), and "no news means stop" is the safe default the architecture asks for in C2 stage 3.
+- Revisit if: 10 Hz of signed steps is too chatty on real links (move to a lease), or a robot needs to finish its current motion safely before stopping instead of stopping at once.
+- Status: needs review
+
+### D26. Revocation is the owner editing the house registry, checked 20 times a second
+- Date, by: 2026-10-10, Claude (autonomous run, M4)
+- Decision:
+  - `owner.py revoke <robot>` atomically rewrites that house's `registry.json`.
+  - The house reloads the registry when the file changes, both on every message and in a 20 Hz watchdog.
+  - The watchdog stops a running task whose sender is no longer `active`. S8 measured about 10 ms from revoke to stop.
+- Alternatives:
+  - a signed revocation message from the owner's own key over the network: needs an owner key and a way to reach the house;
+  - a shared revocation list on the broker: the broker is untrusted (D2);
+  - certificate expiry: revocation only takes effect when the certificate expires.
+- Why: keeps D7 (each house owns its registry) and works with no network at all, which is exactly when an owner may want to cut a robot off.
+- Revisit if: owners manage the house from a phone (then the signed owner message becomes the path), or more than one house must revoke the same robot together.
+- Status: needs review
+
+### D27. One running task per receiving robot
+- Date, by: 2026-10-10, Claude (autonomous run, M4)
+- Decision: a newly allowed task replaces the current one, and the old one is logged as stopped ("replaced by a new task").
+- Alternatives: queue tasks; refuse new tasks while busy; run several at once.
+- Why: a robot has one body. Replacing keeps the newest intent; refusing would let one robot hog another.
+- Revisit if: a lower-trust robot should not be able to cancel a higher-trust robot's task. That is likely the right next rule.
+- Status: needs review

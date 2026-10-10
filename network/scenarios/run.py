@@ -67,6 +67,55 @@ def teardown():
 
 # Each scenario returns (expected, got, passed).
 
+def background_client(*args):
+    return subprocess.Popen([*COMPOSE, "exec", "-T", "house-1", "python", "client.py", *args],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+
+def finish(proc, timeout=20):
+    out, _ = proc.communicate(timeout=timeout)
+    return json.loads(out.strip().splitlines()[-1])
+
+
+def last_event(house, kind, since=0, **match):
+    """Newest event of this kind among those logged after position `since` in the house log."""
+    found = [e for e in events(house)[since:] if e["kind"] == kind
+             and all(e.get(k) == v for k, v in match.items())]
+    return found[-1] if found else None
+
+
+def wait_event(house, kind, since=0, timeout=5.0, **match):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        found = last_event(house, kind, since, **match)
+        if found:
+            return found
+        time.sleep(0.05)
+    return None
+
+
+def owner(house, command, robot):
+    sh(*COMPOSE, "exec", "-T", house, "python", "owner.py", command, robot)
+
+
+def s8_revoked_mid_task():
+    since = len(events("house-2"))
+    proc = background_client("task", A, B, "join_route", "--seconds", "6")
+    started = wait_event("house-2", "task_started", since, **{"from": A})
+    time.sleep(1.0)
+    owner("house-2", "revoke", A)
+    revoked = wait_event("house-2", "revoked", since)
+    stopped = started and wait_event("house-2", "task_stopped", since, task=started["task"])
+    finish(proc)
+    owner("house-2", "activate", A)  # the owner pairs A again for the scenarios after this one
+    if not (started and revoked and stopped):
+        return "stops within 1 s of revocation", f"started {bool(started)}, revoked {bool(revoked)}, stopped {stopped}", False
+    delay = stopped["at"] - revoked["at"]
+    return ("robot B stops within 1 s of revocation",
+            f"stopped {delay * 1000:.0f} ms after revocation ({stopped['reason']}, {stopped['steps']} steps acted on)",
+            stopped["reason"] == "sender key revoked" and 0 <= delay <= 1.0)
+
+
 def s11_isolation():
     direct = client("probe", container_ip("house-2"), "1883")
     by_name = client("probe", "house-2", "1883")
@@ -181,6 +230,7 @@ SCENARIOS = [
     ("S5", "New robot asks for information", s5_new_robot_information_only),
     ("S6", "New robot earns help-level access", s6_trust_is_earned),
     ("S7", "Forged messages claiming to be robot A", s7_forgery_does_not_hurt_victim),
+    ("S8", "Robot A's key revoked mid-task", s8_revoked_mid_task),
     ("S11", "House 1 tries to reach house 2 directly", s11_isolation),
 ]
 
