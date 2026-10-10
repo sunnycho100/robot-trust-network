@@ -147,7 +147,9 @@ def s9_slow_lossy_link():
         for service in ("house-1", "house-2"):
             netem(service)
     done = [r for r in results if r["result"] == "ALLOW"]
-    clean = all(r["result"] in ("ALLOW", "TIMEOUT") for r in results) and max(durations) < 3 + 3
+    # A hang means going past the client's own worst case: connect, subscribe, then the reply timeout,
+    # plus about 2 s for docker exec itself.
+    clean = all(r["result"] in ("ALLOW", "TIMEOUT") for r in results) and max(durations) < 5 + 10 + 3 + 2
     rtt = statistics.median(r["rtt_ms"] for r in done) if done else 0
     FAULTS.append(f"{spec} each way: {len(done)} of {len(results)} requests completed, "
                   f"median round trip {rtt:.0f} ms, slowest call {max(durations):.1f} s")

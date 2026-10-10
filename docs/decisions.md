@@ -316,7 +316,11 @@ Entry format:
 
 ### D30. No answer means DENY
 - Date, by: 2026-10-10, Claude (autonomous run, M5)
-- Decision: a request waits 3 s for a signed reply. A timeout, or a broker that cannot be reached at all, is reported as `TIMEOUT` and treated as DENY. Nothing is retried automatically.
+- Decision:
+  - A request waits 3 s for a signed reply after it is sent.
+  - Before that, connecting may take up to 5 s, and the broker confirming the reply subscription up to 10 s.
+  - So a request always returns within 18 s, and S9 calls anything slower a hang.
+  - A timeout, or a broker that cannot be reached at all, is reported as `TIMEOUT` and treated as DENY. Nothing is retried automatically.
 - Alternatives: retry with backoff; wait forever; treat a timeout as "maybe" and keep trying in the background.
 - Why: the safe default never acts on a request nobody approved. A retry would have to be a new request with a new nonce anyway (D5).
 - Revisit if: under 300 ms and 10% loss, 1 in 8 requests time out at 3 s (S9). A longer timeout or one retry would raise completion, at the cost of slower refusals.

@@ -6,6 +6,7 @@ import protocol
 STATE = os.environ.get("STATE", "/state")
 protocol.KEYS_DIR = STATE  # each house only sees its own keys and registry
 QOS = 1  # broker acks each publish; a redelivered copy is rejected as a replay (decisions D13)
+CONNECT_S, SUBSCRIBE_S = 5.0, 10.0  # worst case before a request is even sent (decisions D30)
 
 
 def connect(client_id, topics=(), on_message=None, keepalive=5, on_ready=None):
@@ -15,6 +16,7 @@ def connect(client_id, topics=(), on_message=None, keepalive=5, on_ready=None):
     """
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id, protocol=mqtt.MQTTv5)
     client.reconnect_delay_set(min_delay=0.5, max_delay=2)  # come back quickly after a cut link
+    client.connect_timeout = CONNECT_S
     subscribed = threading.Event()
 
     def on_subscribe(*_):
@@ -28,7 +30,7 @@ def connect(client_id, topics=(), on_message=None, keepalive=5, on_ready=None):
         client.on_message = on_message
     client.connect(os.environ.get("BROKER", "broker"), protocol.BROKER_PORT, keepalive=keepalive)
     client.loop_start()
-    if topics and not subscribed.wait(10):
+    if topics and not subscribed.wait(SUBSCRIBE_S):
         raise OSError("broker never confirmed the subscription")
     return client
 
