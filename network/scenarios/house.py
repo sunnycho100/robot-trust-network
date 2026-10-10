@@ -3,6 +3,8 @@ import json, os, sys, threading, time
 import policy, protocol
 from common import QOS, STATE, connect, log, parse
 
+GAIN, PENALTY = 5, 20  # trust points for a clean interaction, and for asking for a forbidden action
+
 
 class House:
     def __init__(self, me):
@@ -14,10 +16,35 @@ class House:
         self.verifier = protocol.Verifier(me, self.registry)
         with open(os.path.join(STATE, "rules.json")) as f:
             self.rules = json.load(f)
+        self.trust_path = os.path.join(STATE, "trust.json")
+        if os.path.exists(self.trust_path):
+            with open(self.trust_path) as f:
+                self.trust = json.load(f)
+        else:
+            self.trust = dict(self.rules["trust"])  # the owner's starting scores
+        self.last_gain = {}
         self.lock = threading.Lock()
 
     def trust_of(self, robot):
-        return self.rules["trust"].get(robot, 0)
+        return self.trust.get(robot, 0)
+
+    def learn(self, robot, decision, action):
+        """Trust moves only on verified messages, so a forger can never lower someone else's score."""
+        change = 0
+        if decision.result == "ALLOW":
+            # One gain per interval, so a robot cannot farm trust with a burst of cheap requests.
+            now = time.monotonic()
+            if now - self.last_gain.get(robot, -1e9) >= self.rules.get("gain_interval_s", 3600):
+                change, self.last_gain[robot] = GAIN, now
+        elif action in policy.NEVER_ALLOWED:
+            # Only the shared never list costs trust: a visitor cannot know one owner's private rules.
+            change = -PENALTY
+        if change:
+            self.trust[robot] = max(0, min(100, self.trust_of(robot) + change))
+            with open(self.trust_path + ".tmp", "w") as f:
+                json.dump(self.trust, f, indent=2)
+            os.replace(self.trust_path + ".tmp", self.trust_path)
+        return change
 
     def reload_registry(self):
         """The owner edits registry.json by hand; pick changes up without a restart."""
@@ -42,8 +69,9 @@ class House:
             if ok and msg.get("kind") == "request":
                 start = time.perf_counter()
                 decision = policy.decide(msg, self.trust_of(msg["from"]), self.rules)
-                event.update(result=decision.result, reason=decision.reason,
-                             trust=self.trust_of(msg["from"]), decide_ms=(time.perf_counter() - start) * 1000)
+                decide_ms = (time.perf_counter() - start) * 1000
+                event.update(result=decision.result, reason=decision.reason, trust=self.trust_of(msg["from"]),
+                             decide_ms=decide_ms, trust_change=self.learn(msg["from"], decision, msg.get("action")))
             log(event)
         # Only verified requests get an answer; a forged message gets silence, not a signed echo.
         if ok and msg.get("kind") == "request":

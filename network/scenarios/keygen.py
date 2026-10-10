@@ -9,11 +9,13 @@ HOUSES = {  # house -> robots living there
     "house-3": ["robot-c@house-3"],
 }
 # House rules: starting trust the owner gives each paired robot, plus stricter thresholds.
+# gain_interval_s is short so the test runs in seconds; a real house would use an hour or a day.
 RULES = {
     "house-1": {"trust": {"robot-b@house-2": 70, "robot-c@house-3": 70}},
-    "house-2": {"trust": {"robot-a@house-1": 70, "robot-d@house-1": 0}},
+    "house-2": {"trust": {"robot-a@house-1": 70, "robot-d@house-1": 0}, "gain_interval_s": 1},
     # A stricter owner: trusts A fully, but never lets outside robots route through the house.
-    "house-3": {"trust": {"robot-a@house-1": 100, "robot-d@house-1": 0}, "never": ["join_route"]},
+    "house-3": {"trust": {"robot-a@house-1": 100, "robot-d@house-1": 0}, "never": ["join_route"],
+                "gain_interval_s": 1},
 }
 
 

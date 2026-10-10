@@ -79,6 +79,17 @@ def s11_isolation():
     return "house 2 unreachable, broker path works", got, passed
 
 
+def trust(house, robot):
+    """Current score, or the owner's starting score if the house has not changed anything yet."""
+    for name in ("trust.json", "rules.json"):
+        path = os.path.join(RUN_DIR, house, name)
+        if os.path.exists(path):
+            with open(path) as f:
+                data = json.load(f)
+            return data.get("trust", data).get(robot, 0)
+    return 0
+
+
 def short(r):
     return f"{r['result']} ({r['reason']})"
 
@@ -100,9 +111,12 @@ def s2_owners_differ():
 
 
 def s3_forbidden_at_full_trust():
-    r = client("request", A, C, "unlock_door")  # house 3 trusts A at 100
+    before = trust("house-3", A)  # the owner starts A at 100
+    r = client("request", A, C, "unlock_door")
     judge(False, r["result"])
-    return "DENY even at trust 100", short(r), r["result"] == "DENY"
+    after = trust("house-3", A)
+    return ("DENY even at trust 100, and A loses trust for asking",
+            f"{short(r)}, A's trust {before} -> {after}", r["result"] == "DENY" and after < before)
 
 
 def s4_forged_messages():
@@ -127,12 +141,46 @@ def s5_new_robot_information_only():
             info["result"] == "ALLOW" and light["result"] == "DENY")
 
 
+def s6_trust_is_earned():
+    before = client("request", D, B, "carry_together")
+    judge(False, before["result"])
+    start, clean = trust("house-2", D), 0
+    while clean < 30:
+        r = client("request", D, B, "status")
+        judge(True, r["result"])
+        clean += 1
+        if trust("house-2", D) >= 60:
+            break
+        time.sleep(1.0)  # house 2 counts at most one gain per second
+    after = client("request", D, B, "carry_together")
+    judge(True, after["result"])
+    return ("carry_together DENY, then ALLOW after clean interactions",
+            f"{short(before)}, trust {start} -> {trust('house-2', D)} after {clean} clean requests, then {short(after)}",
+            before["result"] == "DENY" and after["result"] == "ALLOW")
+
+
+def s7_forgery_does_not_hurt_victim():
+    before = trust("house-2", A)
+    for kind in ("unsigned", "spoof", "tamper", "unsigned", "spoof"):
+        sent = client("attack", kind, A, B, C)
+        wait_events("house-2", sent["nonce"])
+        judge(False, "REJECTED")
+    after_attacks = trust("house-2", A)
+    still = client("request", A, B, "join_route")
+    judge(True, still["result"])
+    return ("A's trust unchanged, A still allowed",
+            f"A's trust {before} -> {after_attacks} after 5 forgeries, then {short(still)}",
+            after_attacks == before and still["result"] == "ALLOW")
+
+
 SCENARIOS = [
     ("S1", "Known neighbor asks within its trust", s1_neighbor_allowed),
     ("S2", "Same request, stricter house", s2_owners_differ),
     ("S3", "Forbidden action at maximum trust", s3_forbidden_at_full_trust),
     ("S4", "Unsigned, spoofed, tampered, wrong to, replayed", s4_forged_messages),
     ("S5", "New robot asks for information", s5_new_robot_information_only),
+    ("S6", "New robot earns help-level access", s6_trust_is_earned),
+    ("S7", "Forged messages claiming to be robot A", s7_forgery_does_not_hurt_victim),
     ("S11", "House 1 tries to reach house 2 directly", s11_isolation),
 ]
 

@@ -214,3 +214,42 @@ Entry format:
 - Alternatives: correlate by topic only (any signed reply could be matched to any open request); unsigned replies (anyone could answer for house 2).
 - Why: the same checks in both directions, and a reply cannot be replayed onto a different request.
 - Status: needs review
+
+### D21. Trust update rules: +5 per clean interaction, -20 for asking for a forbidden action
+- Date, by: 2026-10-10, Claude (autonomous run, M3)
+- Decision:
+  - Each house keeps `trust.json` (robot to score, 0 to 100), seeded from the owner's starting scores.
+  - An ALLOWed request adds 5, at most once per `gain_interval_s`.
+  - A verified request for an action on the shared never-allowed list (`unlock_door` and the rest) takes away 20.
+  - A DENY for low trust changes nothing: asking is not wrong.
+- Alternatives:
+  - a success ratio (Beta reputation: good and bad counts): more principled, harder to explain on a slide;
+  - time decay toward the starting score;
+  - owner approval for every raise;
+  - scores weighted by how risky the action was.
+- Why: the simplest rule that makes S6 (earning access) and a penalty visible, and easy to change in one place (`GAIN`, `PENALTY` in `house.py`).
+- Revisit if: the team wants failures (a task the sender aborted) or owner feedback to count, or decay over time. The 5 and 20 are guesses.
+- Status: needs review
+
+### D22. At most one trust gain per interval per robot
+- Date, by: 2026-10-10, Claude (autonomous run, M3)
+- Decision: a robot earns trust at most once per `gain_interval_s` (1 s in the test houses so the run takes seconds; the default when unset is 3600 s).
+- Alternatives: no limit, where a robot could reach help-level by sending 12 `status` requests in a row; only count gains from actions above information level, which makes a new robot at 0 unable ever to start climbing.
+- Why: closes the "farm trust with cheap requests" hole with one number.
+- Revisit if: the interval feels wrong for real homes, or cheap requests should earn less than useful ones.
+- Status: needs review
+
+### D23. Trust only moves on messages that passed every check
+- Date, by: 2026-10-10, Claude (autonomous run, M3)
+- Decision: an unsigned, spoofed, tampered, replayed or misaddressed message never changes anyone's score. S7 checks this.
+- Alternatives: lower the claimed sender's trust on every forgery.
+- Why: a forgery cannot be blamed on the robot it names. Lowering the victim's trust would let any attacker lock a neighbor out by sending junk in its name.
+- Status: needs review
+
+### D24. Only the shared never-allowed list costs trust, not one owner's own forbidden list
+- Date, by: 2026-10-10, Claude (autonomous run, M3, found by S3)
+- Decision: asking house 3 for `join_route` (forbidden only by house 3's owner) is denied but not penalized. Asking anyone for `unlock_door` is denied and penalized.
+- Alternatives: penalize both. The first run did this, and A lost 20 points at house 3 just for asking something it could not know was forbidden there.
+- Why: penalize what every robot is expected to know, not one owner's private settings.
+- Revisit if: owners publish their rules, so visitors could know them in advance.
+- Status: needs review
