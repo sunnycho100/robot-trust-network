@@ -96,6 +96,25 @@ def motion_from_grant(command, grant) -> np.ndarray:
     return scaled
 
 
+def sign_pose(protocol, key, sender, receiver, state: dict) -> bytes:
+    """Wrap one leader pose in a signed envelope, like any other request."""
+    message = protocol.make_message(key, sender, receiver, "pose", kind="pose", state=state)
+    return json.dumps(message, ensure_ascii=False).encode("utf-8")
+
+
+def open_pose(verifier, payload):
+    """Return (state, "ok") for a pose the leader really signed, else (None, reason)."""
+    if len(payload) > 4096:
+        return None, "too large"
+    message = _decode(payload)
+    verified, reason = verifier.check(message)
+    if not verified:
+        return None, reason
+    if message.get("kind") != "pose" or not isinstance(message.get("state"), dict):
+        return None, "not a pose"
+    return message["state"], "ok"
+
+
 class TrustFollower:
     """Verify, then decide. Rejection leaves the current approval in place."""
 
@@ -166,6 +185,8 @@ class TrustMailbox:
         self.leader_key = protocol.load_private_key(self.robot_a)
         self.follower_key = protocol.load_private_key(self.robot_b)
         self.leader_verifier = protocol.Verifier(self.robot_a, registry)
+        # Own nonce memory for the 50 Hz pose stream, apart from the request inbox.
+        self.pose_verifier = protocol.Verifier(self.robot_b, registry)
         self.follower = TrustFollower(
             protocol.Verifier(self.robot_b, registry),
             trust_score,

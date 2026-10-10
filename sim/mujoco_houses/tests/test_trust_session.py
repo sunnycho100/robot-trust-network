@@ -1,4 +1,5 @@
 import base64
+import json
 
 import numpy as np
 import pytest
@@ -92,3 +93,24 @@ def test_tampered_action_fails_verification_and_leaves_the_grant():
     tampered = {**request, "action": "unlock_door"}
     assert follower.receive(tampered, now=1.0) == "rejected"
     assert follower.grant_action == "mirror_motion"
+
+
+def test_follower_only_takes_poses_signed_by_the_leader():
+    from unitree_demo.trust_session import open_pose, sign_pose
+
+    protocol, _policy, leader, robot_a, robot_b, verifier = _peer()
+    state = {"seq": 1, "pose": {"x": 1.0, "y": 0.0, "yaw": 0.0}}
+    signed = sign_pose(protocol, leader, robot_a, robot_b, state)
+    assert open_pose(verifier, signed) == (state, "ok")
+    assert open_pose(verifier, signed) == (None, "replay")
+
+    unsigned = b'{"seq": 2, "pose": {"x": 9.0, "y": 9.0, "yaw": 0.0}}'
+    assert open_pose(verifier, unsigned) == (None, "no signature")
+
+    tampered = json.loads(sign_pose(protocol, leader, robot_a, robot_b, state))
+    tampered["state"]["pose"]["x"] = 9.0
+    assert open_pose(verifier, json.dumps(tampered).encode()) == (None, "bad signature")
+
+    attacker = Ed25519PrivateKey.generate()
+    spoofed = sign_pose(protocol, attacker, robot_a, robot_b, state)
+    assert open_pose(verifier, spoofed) == (None, "bad signature")
