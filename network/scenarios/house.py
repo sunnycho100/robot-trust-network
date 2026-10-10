@@ -121,8 +121,7 @@ class House:
 
 def main(me):
     house = House(me)
-    connect(me, [protocol.inbox(me)], house.on_message)
-    log({"kind": "online", "robot": me})
+    connect(me, [protocol.inbox(me)], house.on_message, on_ready=lambda: log({"kind": "online", "robot": me}))
     house.watchdog()
 
 

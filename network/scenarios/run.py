@@ -162,8 +162,8 @@ def s10_link_cut():
     proc = background_client("task", A, B, "join_route", "--seconds", "8")
     started = wait_event("house-2", "task_started", since, **{"from": A})
     time.sleep(1.0)
+    cut_at = time.monotonic()  # before the command: disconnecting itself takes about a second
     unplug("house-1", False)
-    cut_at = time.monotonic()
     stopped = started and wait_event("house-2", "task_stopped", since, task=started["task"])
     b_stop_s = time.monotonic() - cut_at
     try:
@@ -178,16 +178,20 @@ def s10_link_cut():
     unplug("house-2", False)
     asked = client("request", A, B, "status", "--timeout", "3")
     unplug("house-2", True)
-    time.sleep(2)  # house 2 reconnects to the broker on its own
+    back, deadline = False, time.monotonic() + 15
+    while not back and time.monotonic() < deadline:  # answering again is what "back" means
+        back = client("request", A, B, "status", "--timeout", "2")["result"] == "ALLOW"
 
-    b_safe = bool(stopped) and stopped["reason"] == "step stream went quiet"
+    b_safe = bool(stopped) and stopped["reason"] == "step stream went quiet" and stopped["steps"] > 0
     a_safe = a_side.get("stopped", "").startswith("link lost") and a_exit_s is not None
-    FAULTS.append(f"house 1 cut mid-task: robot B stopped after {b_stop_s:.1f} s ({stopped['reason'] if stopped else 'no stop'}), "
-                  f"robot A gave up after {a_exit_s if a_exit_s is None else round(a_exit_s, 1)} s ({a_side.get('stopped')})")
-    FAULTS.append(f"house 2 offline mid-request: robot A got {asked['result']} ({asked['reason']})")
+    FAULTS.append(f"house 1 cut mid-task: robot B stopped within {b_stop_s:.1f} s of the cut "
+                  f"({stopped['reason'] if stopped else 'no stop'}, after {stopped['steps'] if stopped else 0} steps), "
+                  f"robot A gave up within {a_exit_s if a_exit_s is None else round(a_exit_s, 1)} s ({a_side.get('stopped')})")
+    FAULTS.append(f"house 2 offline mid-request: robot A got {asked['result']} ({asked['reason']}); "
+                  f"plugged back in, house 2 {'answering again' if back else 'still silent after 15 s'}")
     return ("B stops, A gives up, a request to an offline house is a DENY",
             f"B {stopped['reason'] if stopped else 'never stopped'}; A {a_side.get('stopped')}; offline house: {asked['result']}",
-            b_safe and a_safe and asked["result"] == "TIMEOUT")
+            b_safe and a_safe and asked["result"] == "TIMEOUT" and bool(back))
 
 
 def s11_isolation():

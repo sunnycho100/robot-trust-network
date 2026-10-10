@@ -1,5 +1,5 @@
 """Shared by every house: state folder, broker connection, event log."""
-import json, os, time
+import json, os, threading, time
 import paho.mqtt.client as mqtt
 import protocol
 
@@ -8,13 +8,28 @@ protocol.KEYS_DIR = STATE  # each house only sees its own keys and registry
 QOS = 1  # broker acks each publish; a redelivered copy is rejected as a replay (decisions D13)
 
 
-def connect(client_id, topics=(), on_message=None, keepalive=5):
+def connect(client_id, topics=(), on_message=None, keepalive=5, on_ready=None):
+    """Connect, subscribe, and return only once the broker has confirmed the subscription.
+
+    on_ready runs after every (re)subscription, so a house can log each time it is back online.
+    """
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id, protocol=mqtt.MQTTv5)
+    client.reconnect_delay_set(min_delay=0.5, max_delay=2)  # come back quickly after a cut link
+    subscribed = threading.Event()
+
+    def on_subscribe(*_):
+        subscribed.set()
+        if on_ready:
+            on_ready()
+
     client.on_connect = lambda c, *_: topics and c.subscribe([(t, QOS) for t in topics])
+    client.on_subscribe = on_subscribe
     if on_message:
         client.on_message = on_message
     client.connect(os.environ.get("BROKER", "broker"), protocol.BROKER_PORT, keepalive=keepalive)
     client.loop_start()
+    if topics and not subscribed.wait(10):
+        raise OSError("broker never confirmed the subscription")
     return client
 
 

@@ -24,7 +24,6 @@ def request(sender, receiver, action, text="", timeout=3.0, key=None, **fields):
         client = connect(f"{sender}-{time.monotonic_ns()}", [protocol.inbox(sender)], on_message)
     except OSError as e:  # no route to the broker at all
         return {"result": "TIMEOUT", "reason": f"broker unreachable ({e.__class__.__name__}), treated as DENY", "rtt_ms": 0}
-    time.sleep(0.2)  # let the subscription land before the reply can come back
     msg = protocol.make_message(key or protocol.load_private_key(sender), sender, receiver,
                                 text or action, action=action, kind="request", **fields)
     sent.add(msg["nonce"])
