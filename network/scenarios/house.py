@@ -6,6 +6,7 @@ from common import QOS, STATE, connect, log, parse
 GAIN, PENALTY = 5, 20  # trust points for a clean interaction, and for asking for a forbidden action
 TASK_ACTIONS = {"join_route", "mirror_motion", "carry_together"}  # keep going only while signed steps arrive
 STALE_S = 1.0  # a task stops if no valid step arrives for this long
+FIRST_STEP_S = 3.0  # the first step may take as long as a reply may: it waits for the reply to arrive
 
 
 class House:
@@ -110,7 +111,7 @@ class House:
                 entry = self.registry.get(self.task["from"])
                 if entry is None or entry["status"] != "active":
                     self.stop_task("sender key revoked")
-                elif time.monotonic() - self.task["last_step"] > STALE_S:
+                elif time.monotonic() - self.task["last_step"] > (STALE_S if self.task["steps"] else FIRST_STEP_S):
                     self.stop_task("step stream went quiet")
 
     def reply(self, client, msg, result, reason, **fields):

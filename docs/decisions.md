@@ -260,6 +260,7 @@ Entry format:
   - An allowed `join_route`, `mirror_motion` or `carry_together` starts a task.
   - The requester then sends signed `kind: step` messages naming the task (10 a second in the test), and each step passes the full receive checks.
   - The receiver stops the task if no valid step arrives for 1 s (`STALE_S`), if a step says `done`, or if a new task replaces it.
+  - The first step gets 3 s (`FIRST_STEP_S`, the same as the reply timeout), since it can only leave after the grant has travelled back. Two of six clean-clone runs failed when the first step had only 1 s.
 - Alternatives:
   - grant once, then run until the requester says stop: a lost link leaves the robot moving;
   - a fixed duration in the request: no way to stop early;
