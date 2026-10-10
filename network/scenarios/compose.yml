@@ -17,12 +17,14 @@ services:
   house-1:
     <<: *house
     command: sleep infinity          # robots A and D; the runner drives them with client.py
+    cap_add: [NET_ADMIN]             # lets the runner add delay and loss with tc netem
     volumes: ["./.run/house-1:/state"]
     networks: [house1]
 
   house-2:
     <<: *house
     command: python house.py robot-b@house-2
+    cap_add: [NET_ADMIN]
     volumes: ["./.run/house-2:/state"]
     networks: [house2]
 

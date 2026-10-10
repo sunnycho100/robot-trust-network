@@ -20,7 +20,10 @@ def request(sender, receiver, action, text="", timeout=3.0, key=None, **fields):
             replies.update(msg=msg, ok=ok, reason=reason)
             got.set()
 
-    client = connect(f"{sender}-{time.monotonic_ns()}", [protocol.inbox(sender)], on_message)
+    try:
+        client = connect(f"{sender}-{time.monotonic_ns()}", [protocol.inbox(sender)], on_message)
+    except OSError as e:  # no route to the broker at all
+        return {"result": "TIMEOUT", "reason": f"broker unreachable ({e.__class__.__name__}), treated as DENY", "rtt_ms": 0}
     time.sleep(0.2)  # let the subscription land before the reply can come back
     msg = protocol.make_message(key or protocol.load_private_key(sender), sender, receiver,
                                 text or action, action=action, kind="request", **fields)
@@ -58,9 +61,11 @@ def task(sender, receiver, action, seconds, rate=10.0, timeout=3.0):
             stopped = "link lost: broker stopped acknowledging"
             break
         time.sleep(1 / rate)
-    if stopped == "finished":
-        done = protocol.make_message(key, sender, receiver, "step", kind="step", task=answer["task"], done=True)
-        client.publish(protocol.inbox(receiver), json.dumps(done), qos=QOS).wait_for_publish(2)
+    if stopped != "finished":
+        # No goodbye on a dead link: a clean disconnect would wait on a socket that goes nowhere.
+        return dict(answer, steps=steps, stopped=stopped)
+    done = protocol.make_message(key, sender, receiver, "step", kind="step", task=answer["task"], done=True)
+    client.publish(protocol.inbox(receiver), json.dumps(done), qos=QOS).wait_for_publish(2)
     client.loop_stop()
     client.disconnect()
     return dict(answer, steps=steps, stopped=stopped)

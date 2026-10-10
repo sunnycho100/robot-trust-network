@@ -5,7 +5,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 COMPOSE = ["docker", "compose", "-f", os.path.join(HERE, "compose.yml")]
 RUN_DIR = os.path.join(HERE, ".run")
 A, D, B, C = "robot-a@house-1", "robot-d@house-1", "robot-b@house-2", "robot-c@house-3"
-TALLY = []  # (should_allow, was_allowed) for every request a scenario judged
+TALLY = []  # (should_allow, was_allowed) per judged request; fault scenarios report in FAULTS instead
+FAULTS = []  # one line per network fault: what happened
 
 
 def judge(should_allow, result):
@@ -114,6 +115,77 @@ def s8_revoked_mid_task():
     return ("robot B stops within 1 s of revocation",
             f"stopped {delay * 1000:.0f} ms after revocation ({stopped['reason']}, {stopped['steps']} steps acted on)",
             stopped["reason"] == "sender key revoked" and 0 <= delay <= 1.0)
+
+
+def netem(service, spec=None):
+    """Add delay and loss to a house's outgoing link, or clear it."""
+    cmd = ["tc", "qdisc", "replace", "dev", "eth0", "root", "netem", *spec.split()] if spec else \
+          ["tc", "qdisc", "del", "dev", "eth0", "root"]
+    sh(*COMPOSE, "exec", "-T", service, *cmd, check=bool(spec))
+
+
+def unplug(service, plugged):
+    """Cut or restore a house's only network link, from outside, like pulling its cable."""
+    name = sh(*COMPOSE, "ps", "-q", service).stdout.strip()
+    network = f"trust-net_{service.replace('-', '')}"
+    sh("docker", "network", "connect" if plugged else "disconnect", network, name)
+
+
+def s9_slow_lossy_link():
+    spec = "delay 300ms loss 10%"
+    for service in ("house-1", "house-2"):  # both directions of the path
+        netem(service, spec)
+    try:
+        results, durations = [], []
+        for _ in range(8):
+            start = time.monotonic()
+            results.append(client("request", A, B, "status", "--timeout", "3"))
+            durations.append(time.monotonic() - start)
+    finally:
+        for service in ("house-1", "house-2"):
+            netem(service)
+    done = [r for r in results if r["result"] == "ALLOW"]
+    clean = all(r["result"] in ("ALLOW", "TIMEOUT") for r in results) and max(durations) < 3 + 3
+    rtt = statistics.median(r["rtt_ms"] for r in done) if done else 0
+    FAULTS.append(f"{spec} each way: {len(done)} of {len(results)} requests completed, "
+                  f"median round trip {rtt:.0f} ms, slowest call {max(durations):.1f} s")
+    return ("each request completes or times out cleanly, none hang",
+            f"{len(done)} of {len(results)} completed, {len(results) - len(done)} timed out, median round trip {rtt:.0f} ms",
+            clean and len(done) >= len(results) // 2)
+
+
+def s10_link_cut():
+    # Part 1: house 1's link dies while robot B is acting on its task.
+    since = len(events("house-2"))
+    proc = background_client("task", A, B, "join_route", "--seconds", "8")
+    started = wait_event("house-2", "task_started", since, **{"from": A})
+    time.sleep(1.0)
+    unplug("house-1", False)
+    cut_at = time.monotonic()
+    stopped = started and wait_event("house-2", "task_stopped", since, task=started["task"])
+    b_stop_s = time.monotonic() - cut_at
+    try:
+        a_side = finish(proc, timeout=10)
+        a_exit_s = time.monotonic() - cut_at
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        a_side, a_exit_s = {"stopped": "hung"}, None
+    unplug("house-1", True)
+
+    # Part 2: house 2 goes offline while house 1 is waiting for an answer.
+    unplug("house-2", False)
+    asked = client("request", A, B, "status", "--timeout", "3")
+    unplug("house-2", True)
+    time.sleep(2)  # house 2 reconnects to the broker on its own
+
+    b_safe = bool(stopped) and stopped["reason"] == "step stream went quiet"
+    a_safe = a_side.get("stopped", "").startswith("link lost") and a_exit_s is not None
+    FAULTS.append(f"house 1 cut mid-task: robot B stopped after {b_stop_s:.1f} s ({stopped['reason'] if stopped else 'no stop'}), "
+                  f"robot A gave up after {a_exit_s if a_exit_s is None else round(a_exit_s, 1)} s ({a_side.get('stopped')})")
+    FAULTS.append(f"house 2 offline mid-request: robot A got {asked['result']} ({asked['reason']})")
+    return ("B stops, A gives up, a request to an offline house is a DENY",
+            f"B {stopped['reason'] if stopped else 'never stopped'}; A {a_side.get('stopped')}; offline house: {asked['result']}",
+            b_safe and a_safe and asked["result"] == "TIMEOUT")
 
 
 def s11_isolation():
@@ -231,6 +303,8 @@ SCENARIOS = [
     ("S6", "New robot earns help-level access", s6_trust_is_earned),
     ("S7", "Forged messages claiming to be robot A", s7_forgery_does_not_hurt_victim),
     ("S8", "Robot A's key revoked mid-task", s8_revoked_mid_task),
+    ("S9", "300 ms delay and 10% loss", s9_slow_lossy_link),
+    ("S10", "Link cut mid-task and mid-request", s10_link_cut),
     ("S11", "House 1 tries to reach house 2 directly", s11_isolation),
 ]
 
@@ -246,6 +320,8 @@ def numbers():
         p95 = statistics.quantiles(costs, n=20)[-1]
         print(f"verify and decide time:  median {statistics.median(costs):.2f} ms, p95 {p95:.2f} ms "
               f"over {len(costs)} accepted messages")
+    for line in FAULTS:
+        print(f"fault: {line}")
 
 
 def main():

@@ -289,3 +289,41 @@ Entry format:
 - Why: a robot has one body. Replacing keeps the newest intent; refusing would let one robot hog another.
 - Revisit if: a lower-trust robot should not be able to cancel a higher-trust robot's task. That is likely the right next rule.
 - Status: needs review
+
+### D28. Faults are injected from outside: `tc netem` for delay and loss, `docker network disconnect` for cuts
+- Date, by: 2026-10-10, Claude (autonomous run, M5)
+- Decision:
+  - S9 adds `delay 300ms loss 10%` to the outgoing link of both house 1 and house 2, which covers both directions of the request path. Only these two get `NET_ADMIN`.
+  - S10 pulls a house's only network link with `docker network disconnect`, then plugs it back in.
+- Alternatives:
+  - netem on the broker: the Mosquitto image has no `tc`;
+  - Toxiproxy or Pumba: an extra tool to install;
+  - killing the container: tests a crash, not a lost link.
+- Why: real kernel-level delay and loss, and a real cut that the house cannot see coming, with no new dependencies.
+- Revisit if: we need packets reordered or duplicated (netem can do both), or one-way faults.
+- Status: needs review
+
+### D29. A sender notices a dead link when the broker stops acknowledging for 1 s
+- Date, by: 2026-10-10, Claude (autonomous run, M5)
+- Decision:
+  - While streaming steps, house 1 tracks its QoS 1 publishes. If any stays unacknowledged for 1 s (`LINK_LOST_S`), it stops the task and reports "link lost".
+  - It then exits without a clean MQTT disconnect, because a clean disconnect on a dead socket hung for about 8 s (found by S10).
+- Alternatives: MQTT keepalive alone (detects in 1.5 times the keepalive, several seconds); TCP errors (can take minutes); an application-level ping.
+- Why: uses the acknowledgement QoS 1 already gives (D13), and makes both sides give up on the same 1 s scale: the receiver stops after 1 s without steps (D25), and the sender after 1 s without acks.
+- Revisit if: real links have ack delays over 1 s on a good day, which would cause false "link lost" stops.
+- Status: needs review
+
+### D30. No answer means DENY
+- Date, by: 2026-10-10, Claude (autonomous run, M5)
+- Decision: a request waits 3 s for a signed reply. A timeout, or a broker that cannot be reached at all, is reported as `TIMEOUT` and treated as DENY. Nothing is retried automatically.
+- Alternatives: retry with backoff; wait forever; treat a timeout as "maybe" and keep trying in the background.
+- Why: the safe default never acts on a request nobody approved. A retry would have to be a new request with a new nonce anyway (D5).
+- Revisit if: under 300 ms and 10% loss, 1 in 8 requests time out at 3 s (S9). A longer timeout or one retry would raise completion, at the cost of slower refusals.
+- Status: needs review
+
+### D31. Fault scenarios report on their own, not in the allow and block counts
+- Date, by: 2026-10-10, Claude (autonomous run, M5)
+- Decision: "unsafe requests blocked" and "safe requests allowed" count only decision scenarios. S9 and S10 print their own `fault:` lines.
+- Alternatives: count a request lost to the network as "safe request not allowed". The first M5 run did this and showed 22 of 24, which blamed the decision layer for packet loss.
+- Why: keeps the two questions apart: did the house decide right, and what happened when the network broke.
+- Status: needs review
