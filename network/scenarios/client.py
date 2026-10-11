@@ -70,20 +70,26 @@ def task(sender, receiver, action, seconds, rate=10.0, timeout=3.0):
     return dict(answer, steps=steps, stopped=stopped)
 
 
-def attack(kind, sender, receiver, other):
+STRANGER = "robot-x@house-9"  # a robot no house has ever paired with
+
+
+def attack(kind, sender, receiver, other, action="status"):
     """Publish one hostile message to receiver's inbox. Prints its nonce so the runner can find the verdict."""
-    real = protocol.make_message(protocol.load_private_key(sender), sender, receiver, "status",
-                                 action="status", kind="request")
+    real = protocol.make_message(protocol.load_private_key(sender), sender, receiver, action,
+                                 action=action, kind="request")
     if kind == "unsigned":
         msg = {k: v for k, v in real.items() if k != "sig"}
     elif kind == "spoof":    # claims to be sender, signed with a key nobody paired
-        msg = protocol.make_message(Ed25519PrivateKey.generate(), sender, receiver, "status",
-                                    action="status", kind="request")
+        msg = protocol.make_message(Ed25519PrivateKey.generate(), sender, receiver, action,
+                                    action=action, kind="request")
+    elif kind == "stranger":  # honest about who it is, but nobody paired with it
+        msg = protocol.make_message(Ed25519PrivateKey.generate(), STRANGER, receiver, action,
+                                    action=action, kind="request")
     elif kind == "tamper":   # a real signature, then the action changed on the way
         msg = dict(real, action="unlock_door")
     elif kind == "wrong_to":  # really signed by sender, but for another robot, bounced here
-        msg = protocol.make_message(protocol.load_private_key(sender), sender, other, "status",
-                                    action="status", kind="request")
+        msg = protocol.make_message(protocol.load_private_key(sender), sender, other, action,
+                                    action=action, kind="request")
     else:                    # replay: the genuine message, sent twice
         msg = real
     client = connect(f"stranger-{time.monotonic_ns()}")
@@ -117,8 +123,9 @@ def main():
     t.add_argument("sender"); t.add_argument("receiver"); t.add_argument("action")
     t.add_argument("--seconds", type=float, default=5.0)
     at = sub.add_parser("attack")
-    at.add_argument("kind", choices=["unsigned", "spoof", "tamper", "wrong_to", "replay"])
+    at.add_argument("kind", choices=["unsigned", "spoof", "stranger", "tamper", "wrong_to", "replay"])
     at.add_argument("sender"); at.add_argument("receiver"); at.add_argument("other")
+    at.add_argument("--action", default="status")
     pr = sub.add_parser("probe")
     pr.add_argument("host"); pr.add_argument("port", type=int)
     a = p.parse_args()
@@ -127,7 +134,7 @@ def main():
     elif a.cmd == "task":
         out = task(a.sender, a.receiver, a.action, a.seconds)
     elif a.cmd == "attack":
-        out = attack(a.kind, a.sender, a.receiver, a.other)
+        out = attack(a.kind, a.sender, a.receiver, a.other, a.action)
     else:
         out = probe(a.host, a.port)
     print(json.dumps(out))

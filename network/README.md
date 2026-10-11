@@ -73,6 +73,14 @@ With Docker running:
 
 It builds one image, gives each house its own keys and rules, and starts house 1 (robots A and D), house 2 (robot B), house 3 (robot C, stricter rules) and the broker, each house on its own network. Then it runs scenarios S1 to S11 from [`../docs/network-goal.md`](../docs/network-goal.md): signed requests, forgeries, trust rising and falling, revocation mid-task, delay and loss, cut links, and isolation. It prints a pass table and the numbers, and exits 0 only if everything passes (about a minute). Add `--keep` to leave the containers up.
 
+To talk to the households yourself instead, as robot A, robot D or a stranger:
+
+```bash
+./scenarios/play.sh
+```
+
+Type `help` inside. A line like `join_route` sends a signed request and shows the signed answer and the trust change; `as stranger`, `forge`, `tamper` and `replay` show what the house does with bad messages; `task join_route` then `revoke` shows a running task being cut off.
+
 Every design choice behind it is in [`../docs/decisions.md`](../docs/decisions.md).
 
 ## Plan
