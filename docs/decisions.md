@@ -339,3 +339,17 @@ Entry format:
 - Alternatives: run everything as root (the next run fails to delete `.run/` on Linux); keep state in Docker volumes (the runner could no longer read the event logs directly).
 - Why: Seohee runs scripts under WSL, where root-owned files would break the second run.
 - Status: needs review
+
+### D33. Natural language is turned into an action on the sender's side
+- Date, by: 2026-10-10, Claude (asked by Sunghwan, for `play.sh`)
+- Decision:
+  - In `play.sh`, a typed sentence goes to the model already set up in `sim/.env` (an OpenAI-compatible endpoint, Gemini today). The model picks one action from the policy's list.
+  - The message is then signed with both fields: `action` is the model's pick and `request` is your exact sentence. The receiver decides on `action` only.
+  - If the model cannot be reached, simple keyword matching picks the action. The prompt always says which one was used.
+- Alternatives:
+  - the receiver reads the sentence itself and decides what it means, which stops a sender from labelling "unlock the door" as `status`, but means every brand needs a model and they may disagree;
+  - both sides interpret it, and the receiver refuses when its reading differs from the signed `action`;
+  - no model at all, only fixed commands.
+- Why: keeps the decide step exactly as tested (S1 to S11), and the sentence still travels signed, so the receiver can show it to its owner or check it later.
+- Risk: a dishonest but properly signed robot can send a harmless `action` with a harmful sentence. Today the receiver acts on the action, so nothing harmful happens, but the owner log would show a mismatch. The "both sides interpret" option closes this and is the natural next step.
+- Status: needs review

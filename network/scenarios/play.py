@@ -1,13 +1,16 @@
 """Talk to the households yourself. Run: ./play.sh  (type help inside)"""
 import os, shlex, subprocess, sys, time
 import run
+from nl import ACTIONS, interpret
 from run import A, B, C, D, COMPOSE, client, events, owner, sh, trust, wait_events
 
 ROBOTS = {"a": A, "d": D, "b": B, "c": C}
 HOUSE = {B: "house-2", C: "house-3"}
 ATTACKS = ("forge", "unsigned", "tamper", "replay", "wrong_to")  # forge = spoof: claims to be you, wrong key
 HELP = """
-  <action> [words]   send a signed request, e.g.  join_route   unlock_door   carry_together
+  any sentence       e.g.  could you come walk with me?   please let me in
+                     a model turns it into one action, then it is sent signed with your sentence
+  <action> [words]   or name the action yourself, e.g.  join_route   unlock_door   carry_together
   as a | as d        speak as robot A (trusted neighbor) or robot D (new, trust 0)
   as stranger        speak as robot-x, a robot nobody has paired with
   to b | to c        talk to robot B (house 2) or robot C (house 3, stricter owner)
@@ -16,7 +19,7 @@ HELP = """
   tamper <action>    your real request, changed to unlock_door on the way
   replay <action>    your real request, sent twice
   wrong_to <action>  your real request meant for the other robot, bounced here
-  task <action> [s]  start a task that runs for s seconds (default 15) while you keep typing
+  task <words> [s]   start a task for s seconds (default 15) while you keep typing, e.g.  task walk with me 10
   revoke | activate  as the receiving house's owner, revoke or restore the current speaker's key
   trust              every house's trust scores
   log                the last few things the receiving house did
@@ -28,7 +31,8 @@ def say(e):
     """One house log line in plain words."""
     who = (e.get("from") or e.get("robot") or "?").split("@")[0]
     if e["kind"] == "verdict":
-        return f"{who} asked {e.get('action')}: {e['result']} ({e['reason']})"
+        said = f" (\"{e['request']}\")" if e.get("request") and e["request"] != e.get("action") else ""
+        return f"{who} asked {e.get('action')}{said}: {e['result']} ({e['reason']})"
     if e["kind"] == "task_started":
         return f"started {e['action']} for {who}"
     if e["kind"] == "task_stopped":
@@ -36,6 +40,18 @@ def say(e):
     if e["kind"] in ("revoked", "active"):
         return f"owner set {who} to {e['kind']}"
     return None
+
+
+def understand(words):
+    """(action, sentence) from what was typed: an action name as is, anything else through the model."""
+    if not words:
+        return "status", "status"
+    if words[0] in ACTIONS:
+        return words[0], " ".join(words)
+    sentence = " ".join(words)
+    action, how = interpret(sentence)
+    print(f"  understood as {action or 'nothing a robot can do'} (by {how})")
+    return action, sentence
 
 
 def is_up():
@@ -95,12 +111,15 @@ def main():
             if me not in (A, D):
                 print("  a stranger cannot hold a task: its requests never pass the checks")
                 continue
-            seconds = rest[1] if len(rest) > 1 else "15"
+            seconds = rest.pop() if len(rest) > 1 and rest[-1].isdigit() else "15"
+            action, text = understand(rest)
+            if not action:
+                continue
             since = len(events(house))
-            tasks.append(run.background_client("task", me, peer, rest[0], "--seconds", seconds))
+            tasks.append(run.background_client("task", me, peer, action, "--seconds", seconds))
             started = run.wait_event(house, "task_started", since, timeout=6, **{"from": me})
             if started:
-                print(f"  {peer.split('@')[0]} is doing {rest[0]} for you, {seconds} s of signed steps. Try revoke, then log.")
+                print(f"  {peer.split('@')[0]} is doing {action} for you, {seconds} s of signed steps. Try revoke, then log.")
             else:
                 e = run.last_event(house, "verdict", since, **{"from": me})
                 print(f"  not started: " + (f"{e['result']} ({e['reason']})" if e else "no answer"))
@@ -108,19 +127,27 @@ def main():
             if me not in (A, D):
                 print("  switch to as a or as d first: these attacks misuse a real robot's name")
                 continue
-            action = rest[0] if rest else "status"
+            action, text = understand(rest)
+            if not action:
+                continue
             other = C if peer == B else B
-            sent = client("attack", "spoof" if word == "forge" else word, me, peer, other, "--action", action)
+            sent = client("attack", "spoof" if word == "forge" else word, me, peer, other, "--action", action, "--text", text)
             e = verdict(house, sent["nonce"], sent["copies"])
             print(f"  no reply (rejected messages get silence). {peer.split('@')[0]}'s log: "
                   + (f"{e['result']} ({e['reason']})" if e else "nothing logged"))
         elif me == "robot-x@house-9":
-            sent = client("attack", "stranger", A, peer, C, "--action", word)
+            action, text = understand(shlex.split(line))
+            if not action:
+                continue
+            sent = client("attack", "stranger", A, peer, C, "--action", action, "--text", text)
             e = verdict(house, sent["nonce"])
             print(f"  no reply. {peer.split('@')[0]}'s log: " + (f"{e['result']} ({e['reason']})" if e else "nothing logged"))
         else:
+            action, text = understand(shlex.split(line))
+            if not action:
+                continue
             before = trust(house, me)
-            r = client("request", me, peer, word)
+            r = client("request", me, peer, action, "--text", text)
             after = trust(house, me)
             change = f"{before} -> {after}" if after != before else f"{after}, unchanged"
             if r["result"] in ("TIMEOUT", "BAD_REPLY"):

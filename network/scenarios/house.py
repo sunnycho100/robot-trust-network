@@ -68,6 +68,7 @@ class House:
             verify_ms = (time.perf_counter() - start) * 1000
             fields = msg if isinstance(msg, dict) else {}
             event = {"kind": "verdict", "to": self.me, "from": fields.get("from"), "action": fields.get("action"),
+                     "request": fields.get("request"),
                      "nonce": fields.get("nonce"), "ok": ok, "result": "REJECTED", "reason": reason,
                      "verify_ms": verify_ms}
             if ok and msg.get("kind") == "request":
