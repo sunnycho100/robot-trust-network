@@ -19,6 +19,11 @@ import numpy as np
 REEXEC_ENV = "UNITREE_DEMO_RUNNING_UNDER_MJPYTHON"
 
 
+def viewer_label(text: str) -> str:
+    """MuJoCo labels have a byte budget, not a Unicode character budget."""
+    return text.encode("utf-8", errors="backslashreplace")[:90].decode("utf-8", errors="ignore")
+
+
 def ensure_macos_viewer_runtime(headless: bool, module: str) -> None:
     """The macOS MuJoCo viewer must run under mjpython; re-exec once if needed."""
     if headless or platform.system() != "Darwin" or os.environ.get(REEXEC_ENV) == "1":

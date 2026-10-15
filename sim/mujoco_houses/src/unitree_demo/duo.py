@@ -21,7 +21,8 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from .common import HumanCommandInput, add_run_arguments, check_run_arguments, ensure_macos_viewer_runtime
+from .common import (HumanCommandInput, add_run_arguments, check_run_arguments,
+                     ensure_macos_viewer_runtime, viewer_label)
 from .g1_policy import G1Config, G1Controller, gait_phase, load_g1_config
 from .go1_policy import Go1Controller, load_go1_spec, set_policy_gains
 from .trust_session import TrustMailbox, motion_from_grant
@@ -64,15 +65,23 @@ class LeaderMessage:
         if len(payload) > 4096:
             raise ValueError("MQTT formation payload is too large")
         raw = json.loads(payload)
+        if not isinstance(raw, dict):
+            raise ValueError("MQTT formation payload must be an object")
         if raw.get("schema") != "unitree.formation.v1" or raw.get("robot_id") != "g1-leader":
             raise ValueError("Unexpected MQTT formation schema or robot_id")
         pose, command = raw["pose"], raw["command"]
+        components = [pose["x"], pose["y"], pose["yaw"], command["vx"], command["vy"], command["yaw_rate"]]
+        if (any(type(value) not in (int, float) for value in components)
+                or type(raw["seq"]) is not int or type(raw["sent_at_ns"]) is not int):
+            raise ValueError("MQTT formation fields must be numeric, with integer sequence and timestamp")
         values = np.asarray(
-            [pose["x"], pose["y"], pose["yaw"], command["vx"], command["vy"], command["yaw_rate"]],
+            components,
             dtype=np.float64,
         )
         if not np.all(np.isfinite(values)):
             raise ValueError("MQTT formation payload contains non-finite values")
+        if np.any(np.abs(values) > np.finfo(np.float32).max):
+            raise ValueError("MQTT formation payload exceeds the controller's numeric range")
         return cls(
             sequence=int(raw["seq"]),
             sent_at_ns=int(raw["sent_at_ns"]),
@@ -233,8 +242,8 @@ class MqttFormationLink:
             return
         try:
             message = LeaderMessage.from_payload(mqtt_message.payload)
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            print(f"Ignored invalid MQTT message: {exc}", flush=True)
+        except (KeyError, TypeError, ValueError, OverflowError, RecursionError) as exc:
+            print(f"Ignored invalid MQTT message: {type(exc).__name__}", flush=True)
             return
         with self._lock:
             if message.sequence <= self._last_sequence:
@@ -367,7 +376,7 @@ def update_speech_labels(viewer, data, leader, follower, leader_text, follower_t
             position[2] += 0.85
             geom = scene.geoms[index]
             mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_LABEL, np.zeros(3), position, np.eye(3).ravel(), colour)
-            geom.label = text
+            geom.label = viewer_label(text)
 
 
 def run(args) -> None:
@@ -480,7 +489,7 @@ def run(args) -> None:
             if data.time - last_report >= 1.0:
                 received, broker_age = mqtt_link.latest(args.mqtt_stale_timeout, args.message_delay)
                 separation = np.linalg.norm(leader.position_xy(data) - follower.position_xy(data))
-                state = f"seq={received.sequence} age={broker_age * 1000:.0f}ms" if received else "STALE → STOP"
+                state = f"seq={received.sequence} age={broker_age * 1000:.0f}ms" if received else "STALE -> STOP"
                 print(f"t={data.time:5.1f}s MQTT[{state}] {mqtt_link.trust.status_line()} "
                       f"distance={separation:.2f}m height={data.xpos[follower.body_id][2]:.2f} "
                       f"follower_cmd=({follower_cmd[0]:+.2f},{follower_cmd[1]:+.2f},{follower_cmd[2]:+.2f})", flush=True)
