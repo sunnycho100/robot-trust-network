@@ -57,6 +57,45 @@ def _ask_model(env, sentence):
     return next((w for w in words if w in ACTIONS), None)
 
 
+ROOMS = {"front_door": "현관 front door entrance", "living_room": "거실 living room lounge",
+         "kitchen": "주방 부엌 kitchen", "bedroom": "안방 침실 bedroom master", "safe_room": "금고방 금고 safe vault"}
+
+
+def room_of(word):
+    """A room id from one typed word: the id itself or one of its names."""
+    word = word.lower().strip(",.")
+    return next((room for room, names in ROOMS.items() if word == room or word in names.split()), None)
+
+
+def interpret_route(sentence):
+    """Returns (list of rooms in order, how it was understood)."""
+    env = _model_config()
+    if env:
+        try:
+            menu = "\n".join(f"{room}: {names}" for room, names in ROOMS.items())
+            prompt = (f"A visiting robot says where it wants to go in a house:\n\"{sentence}\"\n\n"
+                      f"Rooms:\n{menu}\n\nList the rooms it will pass through, in order, as room ids "
+                      "separated by spaces. Answer with the ids only, or none.")
+            body = {"model": env["VLA_MODEL"], "messages": [{"role": "user", "content": prompt}]}
+            if env.get("VLA_REASONING_EFFORT"):
+                body["reasoning_effort"] = "low"
+            req = urllib.request.Request(env["VLA_BASE_URL"].rstrip("/") + "/chat/completions", json.dumps(body).encode(),
+                                         {"Content-Type": "application/json", "Authorization": "Bearer " + env["VLA_API_KEY"]})
+            answer = json.load(urllib.request.urlopen(req, timeout=20))["choices"][0]["message"]["content"]
+            return [w for w in re.findall(r"[a-z_]+", answer.lower()) if w in ROOMS], env["VLA_MODEL"]
+        except Exception as e:
+            how = f"keywords ({e.__class__.__name__} from the model)"
+    else:
+        how = "keywords (no model in sim/.env)"
+    found = [(m.start(), room) for room, names in ROOMS.items()
+             for name in [room, *names.split()] for m in re.finditer(re.escape(name), sentence.lower())]
+    route = []
+    for _, room in sorted(found):
+        if room not in route:
+            route.append(room)
+    return route, how
+
+
 def interpret(sentence):
     """Returns (action or None, how it was understood)."""
     env = _model_config()

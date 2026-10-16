@@ -81,6 +81,8 @@ To talk to the households yourself instead, as robot A, robot D or a stranger:
 
 Type `help` inside. A line like `join_route` sends a signed request and shows the signed answer and the trust change; `as stranger`, `forge`, `tamper` and `replay` show what the house does with bad messages; `task join_route` then `revoke` shows a running task being cut off.
 
+**Visits released in parts (after VDA 5050).** In `play.sh`, `route 현관 거실 안방` asks to walk through house 2. House 2 releases the rooms robot A may enter now (the Base, green) and holds the rest (the Horizon, grey); the robot stops at the end of the Base. `approve 안방` sends a signed order update that extends the Base. `fake_update`, `bad_update` and `replay_update` are all rejected by the visiting robot. Type `map` to watch it in the browser.
+
 Every design choice behind it is in [`../docs/decisions.md`](../docs/decisions.md).
 
 ## Plan

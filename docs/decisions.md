@@ -353,3 +353,46 @@ Entry format:
 - Why: keeps the decide step exactly as tested (S1 to S11), and the sentence still travels signed, so the receiver can show it to its owner or check it later.
 - Risk: a dishonest but properly signed robot can send a harmless `action` with a harmful sentence. Today the receiver acts on the action, so nothing harmful happens, but the owner log would show a mismatch. The "both sides interpret" option closes this and is the natural next step.
 - Status: needs review
+
+### D34. PARTIAL means a released Base and a waiting Horizon (after VDA 5050)
+- Date, by: 2026-10-15, idea from the team's VDA 5050 research, built by Claude
+- Decision:
+  - A `visit` request carries a route of rooms. The house owner's map gives each room a minimum trust, `owner` (ask the owner first) or `never`.
+  - `policy.release` returns the Base, which is the longest start of the route the visitor may enter now, and the Horizon, which is the rest.
+  - The visitor stops at the end of the Base (the decision point).
+  - A route through a `never` room is denied outright, with nothing released. A room not on the map waits for the owner.
+- Alternatives:
+  - release each room independently, with no order: a visitor could be allowed into the bedroom but not the hallway in front of it;
+  - keep PARTIAL as "do less of it" (half speed, no load), which is what the duo demo does today;
+  - list allowed rooms with no stopping point.
+- Why: makes PARTIAL concrete and visible, and matches an existing industry standard. The difference from VDA 5050 is who releases: there the robot's own fleet operator does, here the house being visited does.
+- Revisit if: routes need branches or alternative paths, or rooms need time windows.
+- Status: needs review
+
+### D35. The visiting robot checks every order update: same order, higher update id, stitched at the decision point
+- Date, by: 2026-10-15, Claude
+- Decision:
+  - The house extends a visit with a signed `order_update`.
+  - The visitor accepts it only if all of these hold: it passes the normal receive checks, comes from the house that released the order, has the same `order_id` and a higher `order_update_id`, and its Base starts at the current decision point.
+  - These checks live in `network/orders.py`. S13 shows a forged update, a properly signed update that skips the decision point, and a replayed update all rejected.
+- Alternatives: send the whole released route each time, with no stitching (an update could quietly rewrite rooms already walked); trust any update signed by the house (a bug in the house could jump the robot ahead).
+- Why: these are VDA 5050's order rules, and on top of them the update is signed, which VDA 5050 does not require.
+- Status: needs review
+
+### D36. An owner's approval counts for one visit only
+- Date, by: 2026-10-15, Claude (found while testing)
+- Decision: `owner.py approve <robot> <room>` adds the room to `approved.json`. The house uses it to extend running visits, and clears that robot's approvals when it starts a new visit.
+- Alternatives: approvals that last forever, which is what the first version did: the bedroom stayed open for every later visit, and the second test visit was a full ALLOW. Or approvals with an expiry time.
+- Why: "you may come into the bedroom this time" is what an owner usually means.
+- Revisit if: owners want standing permissions for a trusted neighbor. That fits better as a higher trust score or a room rule.
+- Status: needs review
+
+### D37. The map page watches the broker from the host, not from a house
+- Date, by: 2026-10-15, Claude
+- Decision:
+  - The broker also joins a normal Docker network and publishes its websocket port on `127.0.0.1:9101` only.
+  - The visiting robot publishes its state, retained, on `demo/route`, and `map.html` draws it.
+  - No house joins that network, so S11 still holds.
+- Alternatives: serve the page from inside a house, which would need a house port open to the host; poll the event files from the host.
+- Why: one page shows the whole demo with no extra service, and the houses stay isolated.
+- Status: needs review

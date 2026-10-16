@@ -13,7 +13,8 @@ services:
   broker:
     image: eclipse-mosquitto:2
     volumes: ["./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"]
-    networks: [house1, house2, house3]
+    networks: [house1, house2, house3, monitor]
+    ports: ["127.0.0.1:9101:9001"]   # websockets for map.html; this laptop only
 
   house-1:
     <<: *house
@@ -39,3 +40,4 @@ networks:
   house1: { internal: true }
   house2: { internal: true }
   house3: { internal: true }
+  monitor: {}                        # broker only: lets map.html on this laptop watch the broker

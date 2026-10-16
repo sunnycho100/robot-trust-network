@@ -97,8 +97,8 @@ def wait_event(house, kind, since=0, timeout=5.0, **match):
     return None
 
 
-def owner(house, command, robot):
-    sh(*COMPOSE, "exec", "-T", house, "python", "owner.py", command, robot)
+def owner(house, command, robot, *extra):
+    sh(*COMPOSE, "exec", "-T", house, "python", "owner.py", command, robot, *extra)
 
 
 def s8_revoked_mid_task():
@@ -194,6 +194,63 @@ def s10_link_cut():
     return ("B stops, A gives up, a request to an offline house is a DENY",
             f"B {stopped['reason'] if stopped else 'never stopped'}; A {a_side.get('stopped')}; offline house: {asked['result']}",
             b_safe and a_safe and asked["result"] == "TIMEOUT" and bool(back))
+
+
+ROUTE = ["front_door", "living_room", "bedroom"]
+
+
+def wait_visit(since, contains, timeout=8.0):
+    """House 1's visiting robot logs every step; wait for a note containing this text."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for e in events("house-1")[since:]:
+            if e["kind"] == "visit" and contains in e["note"]:
+                return e
+        time.sleep(0.1)
+    return None
+
+
+def s12_route_in_parts():
+    since = len(events("house-1"))
+    proc = background_client("visit", A, B, *ROUTE, "--pace", "0.3", "--seconds", "8")
+    waiting = wait_visit(since, "waiting at the decision point")
+    owner("house-2", "approve", A, "bedroom")
+    arrived = wait_visit(since, "arrived at bedroom")
+    finish(proc)
+    got = (f"Base {waiting['base']}, Horizon {waiting['horizon']}, stopped at {waiting['base'][-1]}" if waiting
+           else "never reached the decision point")
+    got += f"; after approval: {'update ' + str(arrived['update_id']) + ', arrived at bedroom' if arrived else 'did not arrive'}"
+    return ("PARTIAL: Base front_door to living_room, stop, then update 1 releases bedroom", got,
+            bool(waiting) and waiting["base"] == ROUTE[:2] and waiting["horizon"] == ROUTE[2:]
+            and bool(arrived) and arrived["update_id"] == 1)
+
+
+def s13_bad_route_updates():
+    since = len(events("house-1"))
+    proc = background_client("visit", A, B, *ROUTE, "--pace", "0.3", "--seconds", "10")
+    wait_visit(since, "waiting at the decision point")
+    client("route_attack", "fake_update", A, B)
+    forged = wait_visit(since, "rejected an update: bad signature")
+    owner("house-2", "bad_update", A)
+    skipped = wait_visit(since, "does not start at the decision point")
+    owner("house-2", "approve", A, "bedroom")
+    wait_visit(since, "update 1 accepted")
+    client("route_attack", "replay_update", A, B)
+    replayed = wait_visit(since, "rejected an update: replay")
+    finish(proc)
+    for e in (forged, skipped, replayed):
+        judge(False, "REJECTED" if e else "ALLOW")
+    names = ("forged update", "update skipping the decision point", "replayed update")
+    return ("all three rejected by the visiting robot",
+            ", ".join(f"{n} {'rejected' if e else 'ACCEPTED'}" for n, e in zip(names, (forged, skipped, replayed))),
+            all((forged, skipped, replayed)))
+
+
+def s14_closed_room():
+    r = client("visit", A, B, "front_door", "safe_room", "--pace", "0.3", "--seconds", "1")
+    judge(False, r["result"])
+    return ("DENY, nothing released", f"{r['result']}, Base {r['base']}, Horizon {r['horizon']}",
+            r["result"] == "DENY" and r["base"] == [])
 
 
 def s11_isolation():
@@ -313,6 +370,9 @@ SCENARIOS = [
     ("S8", "Robot A's key revoked mid-task", s8_revoked_mid_task),
     ("S9", "300 ms delay and 10% loss", s9_slow_lossy_link),
     ("S10", "Link cut mid-task and mid-request", s10_link_cut),
+    ("S12", "Visit released in parts (Base, Horizon)", s12_route_in_parts),
+    ("S13", "Forged, skipping and replayed route updates", s13_bad_route_updates),
+    ("S14", "Route through a closed room", s14_closed_room),
     ("S11", "House 1 tries to reach house 2 directly", s11_isolation),
 ]
 

@@ -1,7 +1,7 @@
 """Talk to the households yourself. Run: ./play.sh  (type help inside)"""
 import os, shlex, subprocess, sys, time
 import run
-from nl import ACTIONS, interpret
+from nl import ACTIONS, interpret, interpret_route, room_of
 from run import A, B, C, D, COMPOSE, client, events, owner, sh, trust, wait_events
 
 ROBOTS = {"a": A, "d": D, "b": B, "c": C}
@@ -20,6 +20,13 @@ HELP = """
   replay <action>    your real request, sent twice
   wrong_to <action>  your real request meant for the other robot, bounced here
   task <words> [s]   start a task for s seconds (default 15) while you keep typing, e.g.  task walk with me 10
+  route <rooms>      visit rooms in house 2, e.g.  route 현관 거실 안방   or  route 거실 지나서 안방까지 갈게
+                     house 2 releases the Base you may enter now; you stop at the end of it (decision point)
+  approve <room>     as house 2's owner, let the visitor into one more room: a signed update extends the Base
+  fake_update        a stranger sends a forged update that opens every room
+  bad_update         house 2's software sends a real update that skips the decision point
+  replay_update      a real update captured off the broker, sent again
+  map                open the route map page (green Base, grey Horizon, red closed)
   revoke | activate  as the receiving house's owner, revoke or restore the current speaker's key
   trust              every house's trust scores
   log                the last few things the receiving house did
@@ -52,6 +59,28 @@ def understand(words):
     action, how = interpret(sentence)
     print(f"  understood as {action or 'nothing a robot can do'} (by {how})")
     return action, sentence
+
+
+KO = {"front_door": "현관", "living_room": "거실", "kitchen": "주방", "bedroom": "안방", "safe_room": "금고방"}
+
+
+def follow(since, until, timeout):
+    """Print what the visiting robot reports, live, until a note contains one of `until`."""
+    seen, deadline = since, time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        new = events("house-1")[seen:]
+        seen += len(new)
+        for e in new:
+            if e["kind"] != "visit":
+                continue
+            note = e["note"]
+            for room, ko in KO.items():
+                note = note.replace(room, f"{ko}")
+            print(f"  [{e['status']}] {note}")
+            if any(u in e["note"] for u in until):
+                return e
+        time.sleep(0.2)
+    print("  (no news yet; it keeps going in the background)")
 
 
 def is_up():
@@ -107,6 +136,41 @@ def main():
             stopped = word == "revoke" and run.wait_event(house, "task_stopped", since, timeout=1.5, **{"from": me})
             if stopped:
                 print(f"  {peer.split('@')[0]} {say(stopped)}")
+        elif word == "map":
+            subprocess.run(["open", os.path.join(os.path.dirname(os.path.abspath(__file__)), "map.html")])
+            print("  opened the route map in your browser")
+        elif word == "route" and rest:
+            if me not in (A, D) or peer != B:
+                print("  visits are set up for robot A or D visiting house 2 (as a, to b)")
+                continue
+            rooms = [room_of(w) for w in rest]
+            if all(rooms):
+                how = None
+            else:
+                rooms, how = interpret_route(" ".join(rest))
+                print(f"  understood the route as {' > '.join(KO.get(r, r) for r in rooms) or 'no rooms'} (by {how})")
+                if not rooms:
+                    continue
+            sh(*COMPOSE, "exec", "-T", "house-1", "pkill", "-f", "client.py visit", check=False)  # one visit at a time
+            since = len(events("house-1"))
+            tasks.append(run.background_client("visit", me, peer, *rooms, "--pace", "1.5", "--seconds", "180"))
+            follow(since, ("waiting at", "arrived", "DENY"), timeout=20)
+        elif word == "approve" and rest:
+            room = room_of(rest[0]) or rest[0]
+            since = len(events("house-1"))
+            owner("house-2", "approve", me, room)
+            print(f"  house 2's owner approved {KO.get(room, room)} for {me.split('@')[0]}")
+            follow(since, ("waiting at", "arrived", "rejected"), timeout=15)
+        elif word in ("fake_update", "replay_update", "bad_update"):
+            since = len(events("house-1"))
+            if word == "bad_update":
+                owner("house-2", "bad_update", me)
+            else:
+                sent = client("route_attack", word, me, peer)
+                if not sent.get("sent"):
+                    print(f"  {sent['note']}")
+                    continue
+            follow(since, ("rejected", "accepted"), timeout=6)
         elif word == "task" and rest:
             if me not in (A, D):
                 print("  a stranger cannot hold a task: its requests never pass the checks")

@@ -49,3 +49,38 @@ def decide(message, trust_score, rules=None):
     if action == "deliver_parcel" and trust_score >= 40:
         return Decision("PARTIAL", "may walk to the door, but may not move the parcel")
     return Decision("DENY", f"trust {trust_score} is below threshold {needed}")
+
+
+@dataclass(frozen=True)
+class Release:
+    result: str
+    base: list     # rooms the visitor may enter now, in order (VDA 5050 "Base", released)
+    horizon: list  # rooms it asked for that wait for more trust or the owner (VDA 5050 "Horizon")
+    reason: str
+
+
+def release(route, trust_score, rooms, approved=()):
+    """Split a requested route into a released Base and a waiting Horizon.
+
+    rooms is the owner's map: room -> minimum trust, "owner" (needs the owner's approval) or
+    "never". The Base is the longest start of the route the visitor may enter now; it ends at
+    the decision point, where the visitor stops until an update releases more.
+    """
+    blocked = [room for room in route if rooms.get(room) == "never"]
+    if blocked:
+        return Release("DENY", [], [], f"{blocked[0]} is closed to visitors")
+    base = []
+    for room in route:
+        rule = rooms.get(room, "owner")  # a room not on the owner's map waits for the owner
+        allowed = room in approved if rule == "owner" else trust_score >= rule
+        if not allowed:
+            break
+        base.append(room)
+    horizon = route[len(base):]
+    if not base:
+        return Release("DENY", [], horizon, f"trust {trust_score} does not cover {route[0]}")
+    if horizon:
+        need = rooms.get(horizon[0], "owner")
+        why = "the owner's approval" if need == "owner" else f"trust {need}"
+        return Release("PARTIAL", base, horizon, f"stop at {base[-1]}: {horizon[0]} needs {why}")
+    return Release("ALLOW", base, [], "whole route released")

@@ -1,4 +1,8 @@
-"""A receiving household: verify, decide, reply signed. Run: python house.py robot-b@house-2"""
+"""A receiving household: verify, decide, reply signed. Run: python house.py robot-b@house-2
+
+A visit request carries a route of rooms. The house releases the part the visitor may enter now (the
+Base) and holds the rest (the Horizon) until the owner approves more, after VDA 5050.
+"""
 import json, os, sys, threading, time
 import policy, protocol
 from common import QOS, STATE, connect, log, parse
@@ -27,7 +31,34 @@ class House:
             self.trust = dict(self.rules["trust"])  # the owner's starting scores
         self.last_gain = {}
         self.task = None
+        self.orders = {}  # route orders with rooms still waiting: order id -> what has been released
+        self.approved, self.approved_mtime = {}, None
+        self.client = None
         self.lock = threading.Lock()
+
+    def reload_approvals(self):
+        """The owner approves rooms for a visitor in approved.json (owner.py approve). True if it changed."""
+        path = os.path.join(STATE, "approved.json")
+        mtime = os.stat(path).st_mtime_ns if os.path.exists(path) else None
+        if mtime == self.approved_mtime:
+            return False
+        self.approved_mtime = mtime
+        if mtime is not None:
+            with open(path) as f:
+                self.approved = json.load(f)
+        return True
+
+    def forget_approvals(self, robot):
+        if self.approved.pop(robot, None) is None:
+            return
+        path = os.path.join(STATE, "approved.json")
+        with open(path + ".tmp", "w") as f:
+            json.dump(self.approved, f, indent=2)
+        os.replace(path + ".tmp", path)
+        self.approved_mtime = os.stat(path).st_mtime_ns
+
+    def release(self, robot, route):
+        return policy.release(route, self.trust_of(robot), self.rules.get("rooms", {}), self.approved.get(robot, ()))
 
     def trust_of(self, robot):
         return self.trust.get(robot, 0)
@@ -71,9 +102,20 @@ class House:
                      "request": fields.get("request"),
                      "nonce": fields.get("nonce"), "ok": ok, "result": "REJECTED", "reason": reason,
                      "verify_ms": verify_ms}
+            extra = {}
             if ok and msg.get("kind") == "request":
                 start = time.perf_counter()
-                decision = policy.decide(msg, self.trust_of(msg["from"]), self.rules)
+                route = msg.get("route")
+                if msg.get("action") == "visit" and isinstance(route, list) and route \
+                        and len(route) <= 10 and all(isinstance(r, str) for r in route):
+                    self.reload_approvals()
+                    self.forget_approvals(msg["from"])  # an owner's approval counts for one visit only
+                    decision = self.release(msg["from"], route)
+                    extra = {"base": decision.base, "horizon": decision.horizon,
+                             "order_id": msg["nonce"], "order_update_id": 0}
+                    event.update(route=route, base=decision.base, horizon=decision.horizon)
+                else:
+                    decision = policy.decide(msg, self.trust_of(msg["from"]), self.rules)
                 decide_ms = (time.perf_counter() - start) * 1000
                 event.update(result=decision.result, reason=decision.reason, trust=self.trust_of(msg["from"]),
                              decide_ms=decide_ms, trust_change=self.learn(msg["from"], decision, msg.get("action")))
@@ -85,6 +127,9 @@ class House:
                     self.stop_task("finished")
                 return  # steps are not logged one by one
             log(event)
+            if extra and extra["horizon"] and event["result"] != "DENY":
+                self.orders[msg["nonce"]] = {"from": msg["from"], "route": route,
+                                             "released": len(extra["base"]), "update_id": 0}
             if ok and msg.get("kind") == "request" and event["result"] != "DENY" and msg.get("action") in TASK_ACTIONS:
                 if self.task:
                     self.stop_task("replaced by a new task")
@@ -93,7 +138,26 @@ class House:
                 log({"kind": "task_started", "from": msg["from"], "action": msg["action"], "task": msg["nonce"]})
         # Only verified requests get an answer; a forged message gets silence, not a signed echo.
         if ok and msg.get("kind") == "request":
-            self.reply(client, msg, event["result"], event["reason"])
+            self.reply(client, msg, event["result"], event["reason"], **extra)
+
+    def release_more(self):
+        """After the owner approves a room, send each waiting visitor a signed order update. Caller holds the lock."""
+        for order_id, order in list(self.orders.items()):
+            now = self.release(order["from"], order["route"])
+            if len(now.base) <= order["released"]:
+                continue
+            order["update_id"] += 1
+            # The new Base starts at the old decision point (the stitching node), so nothing released is changed.
+            base, horizon = order["route"][order["released"] - 1:len(now.base)], now.horizon
+            order["released"] = len(now.base)
+            update = protocol.make_message(self.key, self.me, order["from"], "order update", kind="order_update",
+                                           order_id=order_id, order_update_id=order["update_id"],
+                                           base=base, horizon=horizon)
+            self.client.publish(protocol.inbox(order["from"]), json.dumps(update, ensure_ascii=False), qos=QOS)
+            log({"kind": "order_update", "to": order["from"], "order_id": order_id,
+                 "order_update_id": order["update_id"], "base": base, "horizon": horizon})
+            if not horizon:
+                del self.orders[order_id]
 
     def stop_task(self, reason):
         """Back to the safe default: stop moving. Caller holds the lock."""
@@ -106,6 +170,8 @@ class House:
         while True:
             time.sleep(0.05)
             with self.lock:
+                if self.reload_approvals():
+                    self.release_more()
                 if self.task is None:
                     continue
                 self.reload_registry()
@@ -123,7 +189,8 @@ class House:
 
 def main(me):
     house = House(me)
-    connect(me, [protocol.inbox(me)], house.on_message, on_ready=lambda: log({"kind": "online", "robot": me}))
+    house.client = connect(me, [protocol.inbox(me)], house.on_message,
+                           on_ready=lambda: log({"kind": "online", "robot": me}))
     house.watchdog()
 
 

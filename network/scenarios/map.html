@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Route Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<style>
+  :root { --bg:#0b0b0c; --panel:#121214; --line:#2a2a2e; --text:#ededea; --muted:#8a8a90; --base:#4ecb71; --bad:#ff6b35; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.5 'IBM Plex Mono', Menlo, monospace; padding:32px; min-height:100vh; }
+  header { display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:28px; gap:16px; flex-wrap:wrap; }
+  h1 { font-size:14px; font-weight:500; letter-spacing:4px; }
+  .muted { color:var(--muted); }
+  .tag { border:1px solid var(--line); padding:4px 12px; font-size:12px; letter-spacing:2px; }
+  .tag.on { border-color:var(--text); }
+  .who { font-size:13px; margin-bottom:14px; }
+  .route { display:flex; align-items:stretch; gap:0; margin-bottom:12px; overflow-x:auto; padding:16px 0 8px; }
+  .room { min-width:132px; border:1px solid var(--line); padding:16px 14px; background:var(--panel); position:relative; }
+  .room .ko { font-size:20px; font-weight:600; }
+  .room .en { font-size:11px; color:var(--muted); letter-spacing:1px; }
+  .room .state { font-size:11px; letter-spacing:2px; margin-top:10px; color:var(--muted); }
+  .room.base { border-color:var(--base); }
+  .room.base .state { color:var(--base); }
+  .room.horizon { border-style:dashed; opacity:.55; }
+  .room.blocked { border-color:var(--bad); }
+  .room.blocked .state { color:var(--bad); }
+  .room.here { background:#16261b; }
+  .room .bot { position:absolute; top:-12px; right:10px; background:var(--text); color:var(--bg); font-size:11px; font-weight:600; padding:2px 8px; letter-spacing:1px; }
+  .link { width:28px; align-self:center; height:1px; background:var(--line); flex:none; }
+  .link.base { background:var(--base); }
+  .stop { align-self:center; font-size:11px; color:#ffd166; letter-spacing:1px; padding:0 6px; flex:none; }
+  .status { border:1px solid var(--line); padding:14px 18px; margin:18px 0 24px; display:grid; grid-template-columns:150px 1fr; gap:6px 16px; }
+  .status .k { color:var(--muted); font-size:12px; letter-spacing:2px; }
+  .status .v.good { color:var(--base); } .status .v.bad { color:var(--bad); }
+  .legend { font-size:12px; color:var(--muted); margin-bottom:24px; display:flex; gap:20px; flex-wrap:wrap; }
+  .legend span::before { content:""; display:inline-block; width:12px; height:12px; border:1px solid var(--line); margin-right:6px; vertical-align:-2px; }
+  .legend .l-base::before { border-color:var(--base); }
+  .legend .l-hor::before { border-style:dashed; }
+  .legend .l-bad::before { border-color:var(--bad); }
+  .panel { border:1px solid var(--line); }
+  .panel h2 { font-size:12px; font-weight:500; letter-spacing:3px; padding:12px 16px; border-bottom:1px solid var(--line); color:var(--muted); }
+  .feed { max-height:300px; overflow-y:auto; padding:8px 16px; font-size:13px; }
+  .row { padding:6px 0; border-bottom:1px solid #1a1a1d; }
+  .row .t { color:var(--muted); margin-right:10px; }
+  .row.bad { color:var(--bad); }
+  .empty { color:var(--muted); padding:8px 0; }
+  @media (max-width:700px) { body { padding:16px; } .status { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>ROBOT TRUST NETWORK <span class="muted">// ROUTE MAP</span></h1>
+  <span id="brokerTag" class="tag">BROKER: CONNECTING</span>
+</header>
+
+<div class="who" id="who">No visit yet. In play.sh type: route 현관 거실 안방</div>
+<div class="route" id="route"></div>
+<div class="legend">
+  <span class="l-base">Base: 지금 들어가도 되는 방</span>
+  <span class="l-hor">Horizon: 요청했지만 아직 허락 안 된 방</span>
+  <span class="l-bad">출입 금지</span>
+</div>
+
+<div class="status">
+  <div class="k">DECISION</div><div class="v" id="result">-</div>
+  <div class="k">ORDER</div><div class="v" id="order">-</div>
+  <div class="k">ROBOT</div><div class="v" id="state">-</div>
+</div>
+
+<div class="panel"><h2>EVENTS</h2><div class="feed" id="feed"><div class="empty">waiting for a visit</div></div></div>
+
+<script>
+  const WS = new URLSearchParams(location.search).get('ws') || 'ws://localhost:9101';
+  const KO = { front_door:'현관', living_room:'거실', kitchen:'주방', bedroom:'안방', safe_room:'금고방' };
+  const STATUS_KO = { walking:'이동 중', waiting:'결정 지점에서 대기', arrived:'도착', denied:'거절됨', stopped:'중단' };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  let lastNote = '';
+
+  function addRow(text, bad) {
+    const feed = document.getElementById('feed');
+    feed.querySelector('.empty')?.remove();
+    const row = document.createElement('div');
+    row.className = 'row' + (bad ? ' bad' : '');
+    row.innerHTML = `<span class="t">${new Date().toLocaleTimeString([], { hour12:false })}</span>${esc(text)}`;
+    feed.prepend(row);
+  }
+
+  function render(s) {
+    const base = new Set(s.base || []);
+    const horizon = new Set(s.horizon || []);
+    const here = s.position >= 0 ? s.base[s.position] : null;
+    const parts = [];
+    s.route.forEach((room, i) => {
+      // a room in neither the Base nor the Horizon was refused outright (a closed room denies the whole route)
+      const cls = base.has(room) ? 'base' : horizon.has(room) ? 'horizon' : 'blocked';
+      const label = cls === 'base' ? 'BASE' : cls === 'blocked' ? 'CLOSED' : 'HORIZON';
+      if (i > 0) {
+        const prevBase = base.has(s.route[i - 1]);
+        if (prevBase && !base.has(room) && s.base.length) parts.push('<div class="stop">STOP</div>');
+        else parts.push(`<div class="link ${prevBase && base.has(room) ? 'base' : ''}"></div>`);
+      }
+      parts.push(`<div class="room ${cls}${room === here ? ' here' : ''}">${room === here ? `<span class="bot">${esc(s.robot.split('@')[0].replace('robot-', 'ROBOT ').toUpperCase())}</span>` : ''}
+        <div class="ko">${esc(KO[room] || room)}</div><div class="en">${esc(room)}</div><div class="state">${label}</div></div>`);
+    });
+    document.getElementById('route').innerHTML = parts.join('');
+    document.getElementById('who').textContent = `${s.robot} → ${s.house}`;
+    const result = document.getElementById('result');
+    result.textContent = s.result;
+    result.className = 'v ' + (s.result === 'DENY' ? 'bad' : 'good');
+    document.getElementById('order').textContent = `update ${s.update_id} · Base ${s.base.length} of ${s.route.length} rooms`;
+    document.getElementById('state').textContent = STATUS_KO[s.status] || s.status;
+    if (s.note && s.note !== lastNote) {
+      const said = Object.entries(KO).reduce((text, [room, ko]) => text.replaceAll(room, ko), s.note);
+      addRow(said, /rejected|DENY|gave up/.test(s.note));
+      lastNote = s.note;
+    }
+  }
+
+  const tag = document.getElementById('brokerTag');
+  const client = mqtt.connect(WS, { clientId: 'route-map-' + Math.random().toString(16).slice(2), reconnectPeriod: 2000 });
+  client.on('connect', () => { tag.textContent = 'BROKER: LIVE'; tag.classList.add('on'); client.subscribe('demo/route'); });
+  client.on('close', () => { tag.textContent = 'BROKER: OFFLINE'; tag.classList.remove('on'); });
+  client.on('message', (_topic, buf) => { try { render(JSON.parse(buf.toString())); } catch (e) { console.error(e); } });
+</script>
+</body>
+</html>

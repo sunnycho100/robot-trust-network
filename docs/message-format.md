@@ -48,6 +48,12 @@ Added by agreement; all are covered by the signature like everything else.
 | `reply_to` | In a `response`: the `nonce` of the request it answers, so a reply cannot be moved onto another request |
 | `result` | In a `response`: `ALLOW`, `PARTIAL` or `DENY` |
 | `task` | In a `step`: the `nonce` of the request that started the task |
+| `route` | In a `visit` request: the rooms the visitor wants to pass through, in order |
+| `base`, `horizon` | In the reply to a `visit` and in an `order_update`: the rooms released now, and the rooms still waiting |
+| `order_id` | The `nonce` of the `visit` request. Stays the same for every update of that visit |
+| `order_update_id` | 0 in the reply, then one higher in each `order_update`. The visitor ignores anything not higher than the last one |
+
+An `order_update` must come from the house that released the visit, and its `base` must start at the last room already released (the decision point), so nothing released earlier can change.
 
 ## Result passed to the decide step
 ```json
