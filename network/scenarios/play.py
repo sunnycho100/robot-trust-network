@@ -64,6 +64,34 @@ def understand(words):
 KO = {"front_door": "현관", "living_room": "거실", "kitchen": "주방", "bedroom": "안방", "safe_room": "금고방"}
 
 
+SAY_KO = [  # the visiting robot's English notes, as they read in the Korean demo
+    (r"^in (\S+)$", r"\1에 들어감"),
+    (r"^waiting at the decision point (\S+): (\S+) is not released yet$", r"결정 지점 \1에서 대기 (\2은 아직 허락 안 됨)"),
+    (r"^update (\d+) accepted: may go on to (\S+)$", r"업데이트 \1 수락: \2까지 진행"),
+    (r"^arrived at (\S+)$", r"\1 도착"),
+    (r"^DENY: (\S+) is closed to visitors$", r"DENY: \1은 출입 금지"),
+    (r"^DENY: (.*)$", r"DENY: \1"),
+    (r"^gave up waiting for an update$", "업데이트가 오지 않아 중단"),
+    (r"^rejected an update: bad signature$", "업데이트 거절: 서명 불일치 (위조)"),
+    (r"^rejected an update: replay$", "업데이트 거절: 이미 받은 메시지 (재전송)"),
+    (r"^rejected an update: does not start at the decision point (\S+)$", r"업데이트 거절: 결정 지점 \1에서 이어지지 않음"),
+    (r"^rejected an update: not this order$", "업데이트 거절: 지금 방문과 다른 작업 번호"),
+    (r"^rejected an update: update id is not newer$", "업데이트 거절: 업데이트 번호가 올라가지 않음"),
+    (r"^rejected an update: (.*)$", r"업데이트 거절: \1"),
+]
+
+
+def korean(note):
+    import re
+    for pattern, replacement in SAY_KO:
+        if re.match(pattern, note):
+            note = re.sub(pattern, replacement, note)
+            break
+    for room, ko in KO.items():
+        note = note.replace(room, ko)
+    return note
+
+
 def follow(since, until, timeout):
     """Print what the visiting robot reports, live, until a note contains one of `until`."""
     seen, deadline = since, time.monotonic() + timeout
@@ -73,10 +101,7 @@ def follow(since, until, timeout):
         for e in new:
             if e["kind"] != "visit":
                 continue
-            note = e["note"]
-            for room, ko in KO.items():
-                note = note.replace(room, f"{ko}")
-            print(f"  [{e['status']}] {note}")
+            print(f"  {korean(e['note'])}")
             if any(u in e["note"] for u in until):
                 return e
         time.sleep(0.2)
@@ -92,16 +117,89 @@ def verdict(house, nonce, copies=1):
     return found[-1] if found else None
 
 
+# The guided demo (./demo.sh): what to say, then the command it runs. Enter runs each step.
+DEMO = [
+    ("옆집 로봇 A(신뢰 70)가 우리 집 로봇 B에게 '현관, 거실, 안방'을 지나가겠다고 서명해서 요청해요.\n"
+     "  거실까지는 신뢰로 허락되고(Base), 안방은 주인 승인이 필요해서 보류돼요(Horizon). 로봇은 거실에서 멈춰요.",
+     ["route 현관 거실 안방"]),
+    ("낯선 사람이 우리 집인 척 '모든 방 열어줘' 업데이트를 위조해서 보내요. 서명이 맞지 않아서 거절돼요.",
+     ["fake_update"]),
+    ("우리 집 소프트웨어 버그로, 진짜 서명은 있지만 거실(결정 지점)을 건너뛴 업데이트가 나가요. 이것도 거절돼요.",
+     ["bad_update"]),
+    ("집주인이 안방 출입을 승인해요. 서명된 업데이트 1이 거실에서 이어서 안방을 열어주고, 로봇이 들어가요.",
+     ["approve 안방"]),
+    ("누군가 브로커에서 엿본 진짜 업데이트를 그대로 다시 보내요. 이미 본 메시지라 거절돼요.",
+     ["replay_update"]),
+    ("금고방까지 가겠다는 요청이에요. 금고방은 신뢰가 아무리 높아도 출입 금지라 경로 전체가 DENY예요.",
+     ["route 현관 금고방"]),
+    ("이번에는 그냥 말로 요청해요. Gemini가 문장을 경로로 바꾸고, 결정은 코드가 해요.",
+     ["route 현관 지나서 거실 안쪽 안방까지 들어갈게"]),
+    ("새로 온 로봇 D(신뢰 0)가 같은 경로를 요청해요. 현관까지만 열리고 나머지는 보류돼요.",
+     ["as d", "route 현관 거실 안방"]),
+]
+MAP_PORT = 8765
+
+
+def open_map():
+    """Serve map.html over http (a browser may refuse websockets from a file page) and open it."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    if subprocess.run(["nc", "-z", "127.0.0.1", str(MAP_PORT)], capture_output=True).returncode:
+        subprocess.Popen([sys.executable, "-m", "http.server", str(MAP_PORT), "--bind", "127.0.0.1"],
+                         cwd=here, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(0.5)
+    subprocess.run(["open", f"http://127.0.0.1:{MAP_PORT}/map.html"])
+
+
+def ensure_docker():
+    if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
+        return
+    print("starting Docker Desktop ...")
+    subprocess.run(["open", "-a", "Docker"])
+    for _ in range(60):
+        time.sleep(2)
+        if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
+            return
+    sys.exit("Docker did not start. Open Docker Desktop yourself, then run this again.")
+
+
 def main():
     os.environ.update(HOST_UID=str(os.getuid()), HOST_GID=str(os.getgid()))
-    if "--fresh" in sys.argv or not is_up():
+    ensure_docker()
+    demo = "--demo" in sys.argv
+    if demo or "--fresh" in sys.argv or not is_up():
         print("starting the households (about 20 s the first time) ...")
         run.setup()
     me, peer, tasks = A, B, []
-    print(f"ready. You are {me}, talking to {peer}. Type help for commands.")
+    pending = []
+    if demo:
+        open_map()
+        print("집 지도를 브라우저에 열었어요. 화면 옆에 띄워 두세요.")
+        for i, (say, commands) in enumerate(DEMO, 1):
+            pending.append((f"[{i}/{len(DEMO)}] {say}", commands[0]))
+            pending += [(None, c) for c in commands[1:]]
+    else:
+        print(f"ready. You are {me}, talking to {peer}. Type help for commands.")
     while True:
+        prompt = f"\n{me.split('@')[0]} -> {peer.split('@')[0]} > "
         try:
-            line = input(f"\n{me.split('@')[0]} -> {peer.split('@')[0]} > ").strip()
+            if pending:
+                say, line = pending.pop(0)
+                if say:
+                    print(f"\n{say}")
+                    answer = input("  Enter: 실행   s: 건너뛰기   q: 데모 끝내고 직접 입력 > ").strip().lower()
+                    if answer == "q":
+                        pending = []
+                        print("직접 입력 모드예요. help를 입력하면 명령어가 나와요.")
+                        continue
+                    if answer == "s":
+                        while pending and pending[0][0] is None:
+                            pending.pop(0)
+                        continue
+                print(f"{prompt}{line}")
+                if not pending:
+                    print("  (데모 마지막 단계예요. 다음부터는 직접 입력하면 돼요. help로 명령어 확인)")
+            else:
+                line = input(prompt).strip()
         except (EOFError, KeyboardInterrupt):
             line = "quit"
         if not line:
@@ -137,7 +235,7 @@ def main():
             if stopped:
                 print(f"  {peer.split('@')[0]} {say(stopped)}")
         elif word == "map":
-            subprocess.run(["open", os.path.join(os.path.dirname(os.path.abspath(__file__)), "map.html")])
+            open_map()
             print("  opened the route map in your browser")
         elif word == "route" and rest:
             if me not in (A, D) or peer != B:

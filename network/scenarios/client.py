@@ -41,7 +41,7 @@ def request(sender, receiver, action, text="", timeout=3.0, key=None, **fields):
     reply = replies["msg"]
     out = {"result": reply["result"], "reason": reply["reason"], "rtt_ms": rtt_ms, "task": msg["nonce"],
            "reply_matches": reply["reply_to"] == msg["nonce"] and reply["from"] == receiver}
-    out.update({k: reply[k] for k in ("base", "horizon", "order_id", "order_update_id") if k in reply})
+    out.update({k: reply[k] for k in ("base", "horizon", "closed", "order_id", "order_update_id") if k in reply})
     return out
 
 
@@ -84,7 +84,7 @@ def visit(sender, receiver, route, pace=1.5, seconds=120.0):
     only on an update that passes the signature checks and the order checks (orders.py)."""
     answer = request(sender, receiver, "visit", text="visit " + " ".join(route), route=route)
     state = {"robot": sender, "house": receiver, "route": route, "base": answer.get("base", []),
-             "horizon": answer.get("horizon", route), "position": -1, "update_id": 0,
+             "horizon": answer.get("horizon", route), "closed": answer.get("closed", []), "position": -1, "update_id": 0,
              "result": answer["result"], "status": "", "note": f"{answer['result']}: {answer['reason']}"}
     client = connect(f"{sender}-visit-{time.monotonic_ns()}", [protocol.inbox(sender)])
     lock = threading.Lock()

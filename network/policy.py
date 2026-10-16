@@ -57,6 +57,7 @@ class Release:
     base: list     # rooms the visitor may enter now, in order (VDA 5050 "Base", released)
     horizon: list  # rooms it asked for that wait for more trust or the owner (VDA 5050 "Horizon")
     reason: str
+    closed: tuple = ()  # rooms the owner keeps closed; any of them denies the whole route
 
 
 def release(route, trust_score, rooms, approved=()):
@@ -68,7 +69,7 @@ def release(route, trust_score, rooms, approved=()):
     """
     blocked = [room for room in route if rooms.get(room) == "never"]
     if blocked:
-        return Release("DENY", [], [], f"{blocked[0]} is closed to visitors")
+        return Release("DENY", [], [], f"{blocked[0]} is closed to visitors", tuple(blocked))
     base = []
     for room in route:
         rule = rooms.get(room, "owner")  # a room not on the owner's map waits for the owner

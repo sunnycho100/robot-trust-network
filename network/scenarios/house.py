@@ -111,7 +111,7 @@ class House:
                     self.reload_approvals()
                     self.forget_approvals(msg["from"])  # an owner's approval counts for one visit only
                     decision = self.release(msg["from"], route)
-                    extra = {"base": decision.base, "horizon": decision.horizon,
+                    extra = {"base": decision.base, "horizon": decision.horizon, "closed": list(decision.closed),
                              "order_id": msg["nonce"], "order_update_id": 0}
                     event.update(route=route, base=decision.base, horizon=decision.horizon)
                 else:
@@ -127,6 +127,8 @@ class House:
                     self.stop_task("finished")
                 return  # steps are not logged one by one
             log(event)
+            if extra:  # one visit per robot: a new visit replaces anything older still waiting
+                self.orders = {k: o for k, o in self.orders.items() if o["from"] != msg["from"]}
             if extra and extra["horizon"] and event["result"] != "DENY":
                 self.orders[msg["nonce"]] = {"from": msg["from"], "route": route,
                                              "released": len(extra["base"]), "update_id": 0}

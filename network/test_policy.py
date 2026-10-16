@@ -41,7 +41,7 @@ assert (r.result, r.base, r.horizon) == ("PARTIAL", ["front_door"], ["living_roo
 r = release(["living_room", "front_door"], 10, ROOMS)                      # the first room is already out of reach
 assert (r.result, r.base, r.horizon) == ("DENY", [], ["living_room", "front_door"])
 r = release(["front_door", "safe_room"], 100, ROOMS, approved={"safe_room"})  # a forbidden room denies the whole route
-assert (r.result, r.base, r.horizon) == ("DENY", [], [])
+assert (r.result, r.base, r.horizon, r.closed) == ("DENY", [], [], ("safe_room",))
 r = release(["front_door", "attic"], 100, ROOMS)                            # a room not on the owner's map waits for the owner
 assert (r.result, r.base, r.horizon) == ("PARTIAL", ["front_door"], ["attic"])
 

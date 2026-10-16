@@ -83,6 +83,8 @@ Type `help` inside. A line like `join_route` sends a signed request and shows th
 
 **Visits released in parts (after VDA 5050).** In `play.sh`, `route 현관 거실 안방` asks to walk through house 2. House 2 releases the rooms robot A may enter now (the Base, green) and holds the rest (the Horizon, grey); the robot stops at the end of the Base. `approve 안방` sends a signed order update that extends the Base. `fake_update`, `bad_update` and `replay_update` are all rejected by the visiting robot. Type `map` to watch it in the browser.
 
+**The guided demo.** `./scenarios/demo.sh` opens the house map with a Start and a Pause button and plays the whole visit story step by step, narrated in Korean in the events panel. Pause holds before the next step; Start again replays it from fresh households. `python3 scenarios/play.py --demo` runs the same story in the terminal, one Enter per step.
+
 Every design choice behind it is in [`../docs/decisions.md`](../docs/decisions.md).
 
 ## Plan
