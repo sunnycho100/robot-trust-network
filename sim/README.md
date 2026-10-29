@@ -29,3 +29,13 @@ On macOS the viewer needs `mjpython`, plain `python` will not open the window.
 Unitree G1/Go1 walking on published policies, talking through MQTT with signed
 `network/` requests: a basic WASD G1, a leader/follower duo (G1 or Go1 follower),
 and two RoboCasa houses in separate windows. See [`mujoco_houses/README.md`](mujoco_houses/README.md).
+
+## G1 manipulation
+
+The separate [`manipulation/`](manipulation/README.md) runtime adds an articulated
+G1 with two-finger grippers, GR00T balance, Mink arm IK, and Ruckig smoothing.
+It includes camera-guided generic manipulation, stance/posture planning, and a
+single native window for simulation, commands and traces. Physical task success
+remains unreliable, and it is not connected to the two-household MQTT demo.
+See the [October 29 implementation review](../docs/manipulation-status-2026-10-29.md)
+for measured results and the integration plan.
