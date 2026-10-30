@@ -25,7 +25,7 @@ from .common import (HumanCommandInput, add_run_arguments, check_run_arguments,
                      ensure_macos_viewer_runtime, viewer_label)
 from .g1_policy import G1Config, G1Controller, gait_phase, load_g1_config
 from .go1_policy import Go1Controller, load_go1_spec, set_policy_gains
-from .trust_session import TrustMailbox, motion_from_grant
+from .trust_session import TrustMailbox, motion_from_grant, open_pose, sign_pose
 
 
 FOLLOWERS = ("g1", "go1")
@@ -48,23 +48,26 @@ class LeaderMessage:
     command: np.ndarray
 
     def to_payload(self) -> bytes:
-        return json.dumps(
-            {
-                "schema": "unitree.formation.v1",
-                "robot_id": "g1-leader",
-                "seq": self.sequence,
-                "sent_at_ns": self.sent_at_ns,
-                "pose": {"x": float(self.position_xy[0]), "y": float(self.position_xy[1]), "yaw": float(self.yaw)},
-                "command": {"vx": float(self.command[0]), "vy": float(self.command[1]), "yaw_rate": float(self.command[2])},
-            },
-            separators=(",", ":"),
-        ).encode("utf-8")
+        return json.dumps(self.to_state(), separators=(",", ":")).encode("utf-8")
+
+    def to_state(self) -> dict:
+        return {
+            "schema": "unitree.formation.v1",
+            "robot_id": "g1-leader",
+            "seq": self.sequence,
+            "sent_at_ns": self.sent_at_ns,
+            "pose": {"x": float(self.position_xy[0]), "y": float(self.position_xy[1]), "yaw": float(self.yaw)},
+            "command": {"vx": float(self.command[0]), "vy": float(self.command[1]), "yaw_rate": float(self.command[2])},
+        }
 
     @classmethod
     def from_payload(cls, payload: bytes) -> "LeaderMessage":
         if len(payload) > 4096:
             raise ValueError("MQTT formation payload is too large")
-        raw = json.loads(payload)
+        return cls.from_state(json.loads(payload))
+
+    @classmethod
+    def from_state(cls, raw: dict) -> "LeaderMessage":
         if not isinstance(raw, dict):
             raise ValueError("MQTT formation payload must be an object")
         if raw.get("schema") != "unitree.formation.v1" or raw.get("robot_id") != "g1-leader":
@@ -157,6 +160,7 @@ class MqttFormationLink:
         self._lock = threading.Lock()
         self._history = deque(maxlen=512)
         self._last_sequence = -1
+        self.pose_rejection: str | None = None
         self._leader_ready = threading.Event()
         self._follower_ready = threading.Event()
         self._follower_subscribed = threading.Event()
@@ -240,8 +244,14 @@ class MqttFormationLink:
         if mqtt_message.topic == self.trust.follower_inbox:
             self.trust.ingest_request(mqtt_message.payload, time.monotonic())
             return
+        state, reason = open_pose(self.trust.pose_verifier, mqtt_message.payload)
+        if state is None:
+            if reason != self.pose_rejection:
+                print(f"Ignored pose: {reason}", flush=True)
+            self.pose_rejection = reason
+            return
         try:
-            message = LeaderMessage.from_payload(mqtt_message.payload)
+            message = LeaderMessage.from_state(state)
         except (KeyError, TypeError, ValueError, OverflowError, RecursionError) as exc:
             print(f"Ignored invalid MQTT message: {type(exc).__name__}", flush=True)
             return
@@ -261,13 +271,18 @@ class MqttFormationLink:
             self._error = f"MQTT {what} failed with rc={result.rc}"
 
     def publish(self, message: LeaderMessage) -> None:
-        self._publish(self.leader, self.topic, message.to_payload(), "pose publish")
+        trust = self.trust
+        payload = sign_pose(trust.protocol, trust.leader_key, trust.robot_a, trust.robot_b, message.to_state())
+        self._publish(self.leader, self.topic, payload, "pose publish")
 
     def publish_request(self, action: str) -> None:
         self._publish(self.leader, *self.trust.request_payload(action), "signed request")
 
     def publish_attack(self) -> None:
         self._publish(self.attacker, *self.trust.attack_payload(), "attack publish")
+        # Also try to steer the follower with an unsigned pose 5 m off to the side.
+        fake = LeaderMessage(10**9, time.time_ns(), np.array([0.0, 5.0], dtype=np.float32), 0.0, np.zeros(3, dtype=np.float32))
+        self._publish(self.attacker, self.topic, fake.to_payload(), "attack publish")
 
     def publish_due_reply(self, now: float) -> None:
         due = self.trust.take_reply(now)

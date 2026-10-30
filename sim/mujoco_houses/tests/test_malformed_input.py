@@ -17,7 +17,7 @@ from unitree_demo.house_demo import handle_responder_input
 from unitree_demo.duo import LeaderMessage, MqttFormationLink
 from unitree_demo.common import viewer_label
 from unitree_demo.house_link import HouseInbox, HouseLink, Incoming
-from unitree_demo.trust_session import TrustFollower, TrustMailbox
+from unitree_demo.trust_session import TrustFollower, TrustMailbox, sign_pose
 
 
 BAD_FIELDS = [
@@ -94,14 +94,22 @@ def test_lone_surrogate_cannot_authenticate_or_reach_executor(field):
     assert inbox.due(1)[0].kind == "request"
 
 
-@pytest.mark.parametrize("payload", [b"[]", b"null", b"1", b"{", b"[" * 2000 + b"]" * 2000])
-def test_duo_pose_callback_survives_malformed_json(payload):
+def _pose_link():
+    """A follower link with no broker, and a signer for the leader's poses."""
+    protocol, _policy, leader, robot_a, robot_b, verifier = _peer()
     link = MqttFormationLink.__new__(MqttFormationLink)
-    link.trust = SimpleNamespace(follower_inbox="signed")
+    link.trust = SimpleNamespace(follower_inbox="signed", pose_verifier=verifier)
+    link.pose_rejection = None
     link._lock = threading.Lock()
     link._history, link._last_sequence = deque(), -1
+    return link, lambda state: sign_pose(protocol, leader, robot_a, robot_b, state)
+
+
+@pytest.mark.parametrize("payload", [b"[]", b"null", b"1", b"{", b"[" * 2000 + b"]" * 2000])
+def test_duo_pose_callback_survives_malformed_json(payload):
+    link, sign = _pose_link()
     link._on_message(None, None, SimpleNamespace(topic="pose", payload=payload))
-    good = LeaderMessage(1, 0, [0, 0], 0, [0, 0, 0]).to_payload()
+    good = sign(json.loads(LeaderMessage(1, 0, [0, 0], 0, [0, 0, 0]).to_payload()))
     link._on_message(None, None, SimpleNamespace(topic="pose", payload=good))
     assert link._last_sequence == 1
     assert len(link._history) == 1
@@ -153,17 +161,14 @@ def test_invalid_pose_types_cannot_crash_legacy_stdout_callback(monkeypatch, fie
     stream = io.BytesIO()
     output = io.TextIOWrapper(stream, encoding="cp1252", errors="strict")
     monkeypatch.setattr("sys.stdout", output)
-    link = MqttFormationLink.__new__(MqttFormationLink)
-    link.trust = SimpleNamespace(follower_inbox="signed")
-    link._lock = threading.Lock()
-    link._history, link._last_sequence = deque(), -1
-    valid = LeaderMessage(1, 0, [0, 0], 0, [0, 0, 0]).to_payload()
-    malformed = json.loads(valid)
+    link, sign = _pose_link()
+    valid = json.loads(LeaderMessage(1, 0, [0, 0], 0, [0, 0, 0]).to_payload())
+    malformed = json.loads(json.dumps(valid))
     if field == "x":
         malformed["pose"][field] = value
     else:
         malformed[field] = value
-    link._on_message(None, None, SimpleNamespace(topic="pose", payload=json.dumps(malformed).encode()))
+    link._on_message(None, None, SimpleNamespace(topic="pose", payload=sign(malformed)))
     assert not link._history
-    link._on_message(None, None, SimpleNamespace(topic="pose", payload=valid))
+    link._on_message(None, None, SimpleNamespace(topic="pose", payload=sign(valid)))
     assert link._last_sequence == 1
