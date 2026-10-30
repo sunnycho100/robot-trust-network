@@ -46,7 +46,6 @@ The broker can read every message. Signing proves who sent it and that nothing c
 - `sim/vla_sim.py`: a vision-language model driving a Panda arm or Go2 through skill calls
 
 ## Known gaps
-- Only the first "follow me" request is signed. The leader's position stream after that is plain JSON, so anyone on the topic could steer the follower.
 - A key revoked mid-task is not noticed until the next request.
 - Messages to an offline robot are lost (QoS 0).
 

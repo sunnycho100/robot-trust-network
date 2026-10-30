@@ -13,7 +13,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from .trust_session import ensure_keys, load_trust
+from .trust_session import action_label, check_sim_message, ensure_keys, load_trust
 
 
 EVENT_TOPIC = "demo/events"
@@ -61,7 +61,7 @@ class HouseInbox:
     _pending: list = field(default_factory=list)
 
     def handle(self, message, now: float) -> Incoming | None:
-        verified, reason = self.verifier.check(message)
+        verified, reason = check_sim_message(self.verifier, message)
         if not verified:
             return Incoming("rejected", message, reason, received_at=now)
         if message.get("kind") == "response":
@@ -135,7 +135,7 @@ class HouseLink:
                 continue
             if item.kind == "rejected":
                 self._verdict(message, "REJECTED", item.reason)
-                action = message.get("action", "message") if isinstance(message, dict) else "message"
+                action = action_label(message)
                 stage = "REPLAY BLOCKED" if item.reason == "replay" else "ATTACK BLOCKED"
                 self.event(stage, f"Rejected {action}: {item.reason}", "bad")
             else:
@@ -148,7 +148,7 @@ class HouseLink:
             results.append(item)
         return results
 
-    def send(self, action: str, text: str, reason: str, *, kind: str = "request", reply_to=None, **extra) -> str:
+    def send(self, action: str, text: str, reason: str, *, kind: str = "request", reply_to=None, **extra) -> tuple[str, bytes]:
         fields = {"action": action, "reason": reason, "kind": kind, **extra}
         if reply_to:
             fields["reply_to"] = reply_to
@@ -207,5 +207,5 @@ class HouseLink:
 def _decode(payload):
     try:
         return json.loads(payload)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         return payload.decode(errors="replace") if isinstance(payload, bytes) else payload

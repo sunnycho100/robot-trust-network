@@ -63,10 +63,34 @@ freshness and replay verification first, then the owner policy and trust score.
 Try `--trust 45` to see a `carry_together` request reduced to partial permission,
 or `--trust 10` to see it denied.
 
+## Scenario runner (three households in Docker)
+
+With Docker running:
+
+```bash
+./scenarios/run.sh
+```
+
+It builds one image, gives each house its own keys and rules, and starts house 1 (robots A and D), house 2 (robot B), house 3 (robot C, stricter rules) and the broker, each house on its own network. Then it runs scenarios S1 to S11 from [`../docs/network-goal.md`](../docs/network-goal.md): signed requests, forgeries, trust rising and falling, revocation mid-task, delay and loss, cut links, and isolation. It prints a pass table and the numbers, and exits 0 only if everything passes (about a minute). Add `--keep` to leave the containers up.
+
+To talk to the households yourself instead, as robot A, robot D or a stranger:
+
+```bash
+./scenarios/play.sh
+```
+
+Type `help` inside. A line like `join_route` sends a signed request and shows the signed answer and the trust change; `as stranger`, `forge`, `tamper` and `replay` show what the house does with bad messages; `task join_route` then `revoke` shows a running task being cut off.
+
+**Visits released in parts (after VDA 5050).** In `play.sh`, `route 현관 거실 안방` asks to walk through house 2. House 2 releases the rooms robot A may enter now (the Base, green) and holds the rest (the Horizon, grey); the robot stops at the end of the Base. `approve 안방` sends a signed order update that extends the Base. `fake_update`, `bad_update` and `replay_update` are all rejected by the visiting robot. Type `map` to watch it in the browser.
+
+**The guided demo.** `./scenarios/demo.sh` opens the house map with a Start and a Pause button and plays the whole visit story step by step, narrated in Korean in the events panel. Pause holds before the next step; Start again replays it from fresh households. `python3 scenarios/play.py --demo` runs the same story in the terminal, one Enter per step.
+
+Every design choice behind it is in [`../docs/decisions.md`](../docs/decisions.md).
+
 ## Plan
 - **W1** Message format and Ed25519 sign and verify, with a test that one changed character fails
 - **W2** Key registry (`active` and `revoked`), replay protection with `time` and `nonce`, `to` check
-- **W3** Two house containers and one Mosquitto broker on separate Docker networks, one full request and signed reply
-- **W4** Spoof, tamper, replay and eavesdrop tests, plus delay and packet loss with `tc netem`
+- **W3** Two house containers and one Mosquitto broker on separate Docker networks, one full request and signed reply (done, `scenarios/`)
+- **W4** Spoof, tamper, replay and eavesdrop tests, plus delay and packet loss with `tc netem` (done except eavesdrop, see D12)
 
 Stack: Python, `cryptography`, Mosquitto, Docker.

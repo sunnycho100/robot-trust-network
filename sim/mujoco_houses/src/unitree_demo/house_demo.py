@@ -9,17 +9,22 @@ unsigned command and a replay of a valid one are refused too.
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 import time
 from collections import deque
+from pathlib import Path
+from uuid import uuid4
 
 import mujoco
 import numpy as np
 
-from .common import ensure_macos_viewer_runtime
+from .common import ensure_macos_viewer_runtime, viewer_label
 from .g1_policy import G1Controller, gait_phase, load_g1_config, yaw_from_quaternion
 from .go1_policy import Go1Controller
 from .house_link import LADDER, HouseLink, LadderStep
 from .house_scene import ROBOT_PREFIX, HouseProps, build_house_model, load_layout, nav_command
+from .trust_session import action_label
 
 
 SHORT_NAME = {"house-1": "a", "house-2": "b"}
@@ -31,6 +36,7 @@ RETURN_STEP = LadderStep(
     "house-2 asks house-1",
 )
 PACKAGE_REACH = 0.8
+EXECUTABLE = {"status": "ALLOW", "verify_package": "ALLOW", "verify_and_unlock": "PARTIAL"}
 
 ACK_TEXT = {
     "ALLOW": "On my way to the front door.",
@@ -50,13 +56,13 @@ def package_in_reach(robot_xy, parcel_xy, reach: float = PACKAGE_REACH) -> bool:
 
 def done_text(action: str, result: str, package_found: bool | None = None) -> str:
     if action == "status" and result == "ALLOW":
-        return "House-2 here. Robot B is ready."
+        return "Robot is ready."
     if action == "verify_package" and result == "ALLOW":
         return "Package found at my front door." if package_found else "No parcel at my front door."
     if action == "verify_and_unlock" and result == "PARTIAL":
         found = "Package found." if package_found else "No parcel there."
         return f"{found} The door stays locked."
-    return "Done."
+    raise ValueError(f"No executor for {action}: {result}")
 
 
 def is_final_reply(message) -> bool:
@@ -129,10 +135,20 @@ class House:
         self.stage = "STARTING"
         self.alarm_until = -1.0
         self.inbox: deque = deque()
-        self.replies: list = []
+        self.outstanding: dict[str, str] = {}
+        self.replies: dict[str, dict] = {}
+        self.events: deque = deque(maxlen=256)
+        self.run_id = uuid4().hex
+        self.event_log = getattr(args, "event_log", None)
+        self.failures: list[str] = []
+        self.outcome = None
         self.finished = False
         self.pending_return = None
         self.package_found = False
+        self.return_request = None
+        self.return_closed = False
+        self.return_deadline = None
+        self.active_request = None
 
     @property
     def now(self) -> float:
@@ -141,12 +157,44 @@ class House:
     def note(self, stage: str, text: str, tone: str = "normal", publish: bool = True) -> None:
         self.stage = stage
         self.log.append((stage, text))
-        print(f"[{self.layout.house} t={self.now:5.1f}] {stage}: {text}", flush=True)
+        self.record("note", stage=stage, text=text, tone=tone)
+        line = f"[{self.layout.house} t={self.now:5.1f}] {stage}: {text}"
+        encoding = sys.stdout.encoding or "utf-8"
+        print(line.encode(encoding, errors="backslashreplace").decode(encoding), flush=True)
         if publish:
             self.link.event(stage, text, tone)
 
     def say(self, text: str) -> None:
         self.speech = text
+
+    def record(self, event: str, **fields) -> None:
+        record = {"run_id": self.run_id, "house": self.layout.house, "sim_time": self.now,
+                  "wall_time": time.time(), "monotonic_time": time.monotonic(),
+                  "event": event, **fields}
+        self.events.append(record)
+        if self.event_log is not None:
+            with self.event_log.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=True) + "\n")
+
+    def request(self, step: LadderStep):
+        nonce, payload = self.link.request(step)
+        self.outstanding[nonce] = step.action
+        self.record("request_submitted", nonce=nonce, action=step.action, peer=self.link.peer_id)
+        return nonce, payload
+
+    def fail(self, reason: str) -> None:
+        self.failures.append(reason)
+        self.outcome = "FAILED"
+        self.note("FAILED", reason, "bad")
+
+    def exit_status(self, requester: bool) -> int:
+        return int(bool(self.failures) or self.has_pending_work
+                   or (requester and self.outcome != "COMPLETE"))
+
+    @property
+    def has_pending_work(self) -> bool:
+        return bool(self.outstanding or self.inbox or self.active_request is not None
+                    or self.pending_return is not None or self.link.inbox.deciding)
 
 
 def pause(house: House, seconds: float):
@@ -176,28 +224,48 @@ def responder_task(house: House, action: str, result: str):
 def perform(house: House, message, result: str):
     """Carry out one accepted request and send the signed done reply."""
     action = message.get("action")
+    if EXECUTABLE.get(action) != result:
+        refuse_execution(house, message, "unsupported action or permission")
+        return False
+    house.active_request = message["nonce"]
+    house.record("execution_started", nonce=message["nonce"], action=action, result=result)
     if action != "status":
         house.note("ACT", f"{action}: {result}")
         house.say(f"{action.replace('_', ' ')}...")
         yield from responder_task(house, action, result)
     text = done_text(action, result, house.package_found)
     house.link.reply(message, result, text, phase="done")
+    house.record("execution_done", nonce=message["nonce"], action=action, result=result,
+                 evidence="simulator_ground_truth", package_found=house.package_found if action != "status" else None)
     house.note("DONE", text, "good")
     house.say(text)
     if action != "status":
         yield from walk(house, house.layout.spawn)
+    house.active_request = None
+    return True
+
+
+def refuse_execution(house: House, message, reason: str) -> None:
+    house.link.reply(message, "DENY", f"No. {reason}.", phase="done")
+    house.record("execution_denied", nonce=message["nonce"], action=message.get("action"), reason=reason)
+    house.note("DENY", f"{message.get('action')}: {reason}", "bad")
+    house.say(f"No: {reason}")
 
 
 def ask_back(house: House, step: LadderStep):
     """house-2 asks house-1 for the same kind of help, then waits for the signed reply."""
     house.note("REQUEST", f"Signed {step.action} to house-1: {step.request}")
     house.say(step.request)
-    nonce, _payload = house.link.request(step)
+    nonce, _payload = house.request(step)
     reply = yield from wait_reply(house, nonce, 70.0)
     if reply is None:
         house.note("TIMEOUT", "house-1 did not answer", "bad")
+        house.fail("Return request timed out")
+    elif reply["result"] != EXECUTABLE[step.action]:
+        house.fail(f"Return request received {reply['result']}")
     else:
         house.say(reply.get("request", ""))
+        house.note("RETURN CONFIRMED", "House-1 reported the return task complete")
 
 
 def responder_story(house: House):
@@ -220,11 +288,15 @@ def responder_story(house: House):
 
 
 def handle_responder_input(house: House, item) -> None:
+    if item.kind == "response":
+        handle_reply(house, item.message)
+        return
     if item.kind == "rejected":
-        action = item.message.get("action", "message") if isinstance(item.message, dict) else "message"
+        action = action_label(item.message)
         house.note("REJECTED", f"{action}: {item.reason}. Keeping my current task.", "bad", publish=False)
         house.say(f"REJECTED {action}: {item.reason}")
         house.alarm_until = house.now + 3.0
+        house.record("authentication_rejected", reason=item.reason)
         return
     if item.kind != "request":
         return
@@ -232,11 +304,15 @@ def handle_responder_input(house: House, item) -> None:
     house.say(f"\"{message.get('request', '')}\"")
     house.log.append(("VERIFY", f"{message.get('action')}: signature, recipient, time, nonce OK"))
     house.log.append(("DECIDE", f"{decision.result} · {decision.reason}"))
+    house.record("policy_decision", nonce=message["nonce"], action=message.get("action"),
+                 peer=message["from"], result=decision.result, reason=decision.reason)
     if decision.result == "DENY":
-        house.link.reply(message, "DENY", ack_text("DENY", decision.reason), phase="done")
-        house.say(f"No: {decision.reason}")
-        if message.get("action") == "verify_package":
+        refuse_execution(house, message, decision.reason)
+        if message.get("action") == "verify_package" and house.layout.house == "house-2":
             house.pending_return = RETURN_STEP
+        return
+    if EXECUTABLE.get(message.get("action")) != decision.result:
+        refuse_execution(house, message, "unsupported action or permission")
         return
     if message.get("action") != "status":
         house.link.reply(message, decision.result, ack_text(decision.result, decision.reason), phase="ack")
@@ -246,12 +322,51 @@ def handle_responder_input(house: House, item) -> None:
 def wait_reply(house: House, nonce: str, timeout: float = 45.0):
     """Yield until robot-b's final signed reply to ``nonce`` arrives."""
     end = house.now + timeout
-    while house.now < end:
-        for reply in house.replies:
-            if reply.get("reply_to") == nonce and is_final_reply(reply):
+    try:
+        while house.now < end:
+            reply = house.replies.pop(nonce, None)
+            if reply is not None:
+                house.record("request_outcome", nonce=nonce, outcome=reply["result"], evidence="peer_report")
                 return reply
+            yield
+        house.record("request_outcome", nonce=nonce, outcome="TIMEOUT", evidence="local")
+        return None
+    finally:
+        house.outstanding.pop(nonce, None)
+        house.replies.pop(nonce, None)
+
+
+def handle_reply(house: House, message) -> None:
+    """Only an expected peer's matching final reply can finish an outstanding request."""
+    nonce = message.get("reply_to")
+    expected = house.outstanding.get(nonce)
+    if (expected is None or message.get("from") != house.link.peer_id
+            or message.get("action") != expected
+            or message.get("phase") not in ("ack", "done")
+            or message.get("result") not in ("ALLOW", "PARTIAL", "DENY")
+            or nonce in house.replies):
+        house.record("reply_ignored", reply_to=nonce, reason="unexpected, invalid or duplicate reply")
+        return
+    if is_final_reply(message):
+        house.replies[nonce] = message
+    house.record("reply_received", reply_to=nonce, action=expected, result=message["result"],
+                 phase=message["phase"], evidence="peer_report")
+    house.note("REPLY", f"{message['result']} · {message.get('request', '')}", publish=False)
+
+
+def finish_story(house: House):
+    while house.inbox:
+        message, _ = house.inbox.popleft()
+        refuse_execution(house, message, "story ended before this request could execute")
+    house.outcome = "FAILED" if house.failures else "COMPLETE"
+    text = ("Story incomplete: " + "; ".join(house.failures) if house.failures else
+            "Neighbor reported the requested work complete; local return task completed. "
+            "Attack outcomes must be checked in the receiving house's log.")
+    house.note(house.outcome, text, "bad" if house.failures else "good")
+    house.say("Story incomplete." if house.failures else "Cooperation tasks complete.")
+    house.finished = True
+    while True:
         yield
-    return None
 
 
 def requester_story(house: House):
@@ -262,10 +377,14 @@ def requester_story(house: House):
     sent = {}
     for _ in range(6):
         # house-2 may still be loading; each retry is a fresh signed message.
-        nonce, payload = house.link.request(STATUS_STEP)
+        nonce, payload = house.request(STATUS_STEP)
         sent[STATUS_STEP.key] = payload
-        if (yield from wait_reply(house, nonce, 5.0)) is not None:
+        reply = yield from wait_reply(house, nonce, 5.0)
+        if reply is not None and reply["result"] == "ALLOW":
             break
+    else:
+        house.fail("No successful discovery reply from house-2")
+        yield from finish_story(house)
     for index, step in enumerate(LADDER, start=2):
         yield from pause(house, 2.0)
         if step.replay_of:
@@ -282,44 +401,52 @@ def requester_story(house: House):
             continue
         house.note(f"{index} · REQUEST", f"Signed {step.action}: {step.request}")
         house.say(step.request)
-        nonce, payload = house.link.request(step)
+        nonce, payload = house.request(step)
         sent[step.key] = payload
         reply = yield from wait_reply(house, nonce)
         if reply is None:
             house.note("TIMEOUT", f"No signed reply for {step.action}", "bad")
+            house.fail(f"{step.action} timed out")
+        elif reply["result"] != EXECUTABLE[step.action]:
+            house.fail(f"{step.action} received {reply['result']}")
         else:
             house.say(reply.get("request", "Thanks!"))
-    yield from answer_peer(house)
+    if not (yield from answer_peer(house)):
+        house.fail("Return task did not complete")
     yield from pause(house, 2.0)
-    house.note(f"{len(LADDER) + 2} · COMPLETE", "Cooperation over signed MQTT. Forgery and replay rejected.", "good")
-    house.say("Done. Thanks, neighbour!")
-    house.finished = True
-    while True:
-        yield
+    yield from finish_story(house)
 
 
 def answer_peer(house: House, timeout: float = 40.0):
     """house-1 verifies house-2's request and does the task in its own kitchen."""
     end = house.now + timeout
-    while not house.inbox and house.now < end:
+    house.return_deadline = end
+    while house.now < end:
+        for message, result in house.inbox:
+            if message.get("from") == house.link.peer_id and message.get("action") == RETURN_STEP.action:
+                house.inbox.remove((message, result))
+                house.note("FROM HOUSE-2", message.get("request", ""), "good")
+                return (yield from perform(house, message, result))
         yield
-    if not house.inbox:
-        house.note("TIMEOUT", "house-2 did not ask anything back", "bad")
-        return
-    message, result = house.inbox.popleft()
-    house.note("FROM HOUSE-2", message.get("request", ""), "good")
-    yield from perform(house, message, result)
+    house.return_closed = True
+    house.note("TIMEOUT", "house-2 did not ask for the return inspection", "bad")
+    return False
 
 
 def handle_requester_input(house: House, item) -> None:
-    if item.kind == "response":
+    if item.kind == "request":
         message = item.message
-        house.replies.append(message)
-        house.note("REPLY", f"{message.get('result')} · {message.get('request')}", publish=False)
-    elif item.kind == "rejected":
-        house.note("REJECTED", item.reason, "bad", publish=False)
-    elif item.kind == "request":
-        handle_responder_input(house, item)
+        if (house.finished or house.return_closed or house.return_request is not None
+                or (house.return_deadline is not None and house.now >= house.return_deadline)
+                or message.get("from") != house.link.peer_id
+                or message.get("action") != RETURN_STEP.action):
+            house.record("policy_decision", nonce=message["nonce"], action=message.get("action"),
+                         peer=message["from"], result=item.decision.result, reason=item.decision.reason)
+            refuse_execution(house, message, "requester is not accepting this task")
+            return
+    handle_responder_input(house, item)
+    if item.kind == "request" and house.inbox:
+        house.return_request = house.inbox[-1][0]["nonce"]
 
 
 def overlay(house: House, kind: str, trust: int):
@@ -350,10 +477,12 @@ def draw_label(viewer, house: House) -> None:
         scene.ngeom = 1
         geom = scene.geoms[0]
         mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_LABEL, np.zeros(3), position, np.eye(3).ravel(), colour)
-        geom.label = house.speech[:90]
+        geom.label = viewer_label(house.speech)
 
 
-def run(args) -> None:
+def run(args) -> int:
+    if args.event_log is not None:
+        args.event_log.parent.mkdir(parents=True, exist_ok=True)
     cfg = load_g1_config()
     layout = load_layout(args.house)
     model = build_house_model(layout, args.robot, cfg.robot_xml)
@@ -383,10 +512,13 @@ def run(args) -> None:
     wall_start = time.monotonic()
     finished_at = None
     step = 0
+    exit_code = 0
     try:
         while viewer is None or viewer.is_running():
             tick_start = time.monotonic()
             if args.duration and tick_start - wall_start > args.duration:
+                if (requester and not house.finished) or house.has_pending_work:
+                    house.fail("Run duration expired before pending work completed")
                 break
             if step % cfg.control_decimation == 0:
                 for item in link.poll(time.monotonic()):
@@ -403,6 +535,7 @@ def run(args) -> None:
             mujoco.mj_step(model, data)
             if data.xpos[robot.body_id][2] < (0.45 if args.robot == "g1" else 0.15):
                 house.note("FALL", "robot base dropped; check the policy and spawn", "bad", publish=False)
+                exit_code = 1
                 break
             if viewer is not None and step % cfg.control_decimation == 0:
                 viewer.sync()
@@ -413,7 +546,7 @@ def run(args) -> None:
             if remaining > 0:
                 time.sleep(remaining)
     except KeyboardInterrupt:
-        pass
+        exit_code = 1
     finally:
         if args.headless:
             print(f"[{layout.house}] end: robot at {robot.position(data).round(2)}, "
@@ -421,6 +554,9 @@ def run(args) -> None:
         link.close()
         if viewer is not None:
             viewer.close()
+    exit_code = max(exit_code, house.exit_status(requester))
+    house.record("run_ended", outcome=house.outcome or "STOPPED", exit_code=exit_code)
+    return exit_code
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -434,6 +570,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mqtt-host", default="127.0.0.1")
     parser.add_argument("--mqtt-port", type=int, default=1883)
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--event-log", type=Path, help="Append local structured events to a JSONL file")
     parser.add_argument("--duration", type=float, default=0.0, help="Stop after this many wall seconds")
     return parser
 
@@ -445,7 +582,7 @@ def main() -> None:
     if not 0 <= args.trust_delay <= 3.0:
         raise SystemExit("--trust-delay must be between 0 and 3 seconds")
     ensure_macos_viewer_runtime(args.headless, "unitree_demo.house_demo")
-    run(args)
+    raise SystemExit(run(args))
 
 
 if __name__ == "__main__":
