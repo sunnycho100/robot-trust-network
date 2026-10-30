@@ -16,17 +16,22 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mujoco_houses" / "src"))
 from unitree_demo.g1_policy import G1Controller, gait_phase, load_g1_config  # noqa: E402
 
-FALL_HEIGHT = 0.45  # pelvis below this means the robot is down
+FALL_HEIGHT = 0.35  # pelvis less than this above the lower foot means the robot is down (works on slopes too)
 
 
-def build(scene_xml, cfg, spawn):
+def build(scene_xml, cfg, spawn, z=0.0):
     spec = mujoco.MjSpec.from_file(str(scene_xml)) if scene_xml else mujoco.MjSpec.from_string(
         '<mujoco><worldbody><geom name="floor" type="plane" size="0 0 0.05"/></worldbody></mujoco>')
-    frame = spec.worldbody.add_frame(name="g1_spawn", pos=(spawn[0], spawn[1], 0.0))
+    frame = spec.worldbody.add_frame(name="g1_spawn", pos=(spawn[0], spawn[1], z))
     spec.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml)), prefix="g1_", frame=frame)
     model = spec.compile()
     model.opt.timestep = cfg.simulation_dt
     return model
+
+
+def fallen(model, data, g1):
+    feet = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"g1_{s}_ankle_roll_link") for s in ("left", "right")]
+    return data.xpos[g1.body_id][2] - min(data.xpos[f][2] for f in feet) < FALL_HEIGHT
 
 
 def episode(model, cfg, start_yaw, goal, seconds, frames=None, renderer=None, camera=None):
@@ -44,7 +49,7 @@ def episode(model, cfg, start_yaw, goal, seconds, frames=None, renderer=None, ca
         to_goal = goal - g1.position_xy(data)
         if np.linalg.norm(to_goal) < 0.3:
             return "reached", data.time
-        if data.xpos[g1.body_id][2] < FALL_HEIGHT:
+        if fallen(model, data, g1):
             return "fell", data.time
         err = (math.atan2(to_goal[1], to_goal[0]) - g1.yaw(data) + math.pi) % (2 * math.pi) - math.pi
         command[:] = [0.4 if abs(err) < 0.5 else 0.05, 0.0, float(np.clip(1.5 * err, -0.6, 0.6))]
@@ -96,11 +101,18 @@ def main():
     spawn = np.array(info["spawn_xy"])
     rng = np.random.default_rng(0)
     results = {}
-    # Half the goals sit in open floor, half 15-30 cm from walls and clutter, so the proxies get tested.
-    goals = [np.array(info["waypoints"][k]) for k in ("open", "near") if info["waypoints"][k]]
+    # Half the goals sit in open floor, half 15-30 cm from walls and clutter, so the proxies get tested. All are
+    # 1.5 to 6 m from the spawn, reachable within an episode (the nearest ones if a big site has too few).
+    goals = []
+    for k in ("open", "near"):
+        g = np.array(info["waypoints"][k])
+        if len(g):
+            d = np.linalg.norm(g - spawn, axis=1)
+            ok = (d > 1.5) & (d < 6.0)
+            goals.append(g[ok] if ok.sum() >= 5 else g[np.argsort(np.abs(d - 3.0))[:10]])
     trials = [(rng.uniform(-math.pi, math.pi), g[rng.integers(len(g))]) for g in goals for _ in range(a.episodes // len(goals))]
     for name, xml in (("scene", a.scene / "scene.xml"), ("bare plane", None)):
-        model = build(xml, cfg, spawn)
+        model = build(xml, cfg, spawn, info.get("spawn_z", 0.0) if xml else 0.0)
         frames = renderer = camera = None
         if a.video and xml:
             renderer, camera = mujoco.Renderer(model, 480, 640), mujoco.MjvCamera()

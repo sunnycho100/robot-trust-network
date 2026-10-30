@@ -13,6 +13,9 @@ scene_info.json (bounds, a free spawn point, collision counts).
   convex hull, which fills the room). Collisions are a plane for the floor, a thin box per wall
   plane, and CoACD convex pieces for the remaining clutter (pipes, machines, debris). A heightfield
   would turn tables and pipes into solid columns down to the floor, so it is not used indoors.
+- --outdoor (sites, yards, uneven ground): the ground becomes a heightfield from cloth-simulation
+  ground points (curbs and slopes stay), and everything standing on it is made solid on a 5 cm grid
+  and covered by merged boxes. No wall planes. Cropping is relative to the ground.
 """
 import argparse, json
 from pathlib import Path
@@ -76,8 +79,9 @@ def level(mesh, poses, extra_points=None):
     return T, len(walls)
 
 
-def crop(mesh, z_min, z_max):
-    z = np.asarray(mesh.vertices)[:, 2]
+def crop(mesh, z_min, z_max, hf=None):
+    v = np.asarray(mesh.vertices)
+    z = v[:, 2] - (height_at(hf, v[:, :2]) if hf else 0.0)  # outdoors: height above the local ground
     keep = (z > z_min) & (z < z_max)
     triangles = np.asarray(mesh.triangles)
     mesh.remove_triangles_by_mask(~keep[triangles].all(axis=1))
@@ -99,7 +103,12 @@ def write_textured_obj(mesh, out, texture_size):
     mesh.remove_degenerate_triangles()
     mesh.remove_duplicated_triangles()
     mesh.remove_duplicated_vertices()
-    mesh.remove_non_manifold_edges()
+    for _ in range(5):  # removing a bad vertex can expose another, so repeat until clean
+        mesh.remove_non_manifold_edges()
+        bad = np.asarray(mesh.get_non_manifold_vertices())
+        if not len(bad):
+            break
+        mesh.remove_vertices_by_index(bad)
     mesh.remove_unreferenced_vertices()
     t = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
     t.compute_uvatlas(size=texture_size)
@@ -207,12 +216,137 @@ def spawn_point(floor_pts, obstacle_pts, cell=0.05):
     r, c = np.unravel_index(dist.argmax(), dist.shape)
     xy = lambda rr, cc: np.stack([lo[0] + (cc + 0.5) * cell, lo[1] + (rr + 0.5) * cell], axis=-1)
     rng = np.random.default_rng(0)
+    labels, _ = ndimage.label(dist * cell >= 0.35)
+    reach = ndimage.binary_dilation(labels == labels[r, c], iterations=7)  # connected to the spawn, plus 35 cm to the walls
     def sample(lo_m, hi_m):
-        rr, cc = np.nonzero((dist * cell >= lo_m) & (dist * cell < hi_m))
+        rr, cc = np.nonzero((dist * cell >= lo_m) & (dist * cell < hi_m) & reach)
         pick = rng.permutation(len(rr))[:300]
         return xy(rr[pick], cc[pick]).round(3).tolist()
     # open: reachable without brushing anything; near: 15-30 cm from a wall or clutter, to test the proxies
     return xy(r, c).tolist(), float(dist.max() * cell), {"open": sample(0.35, 99), "near": sample(0.15, 0.30)}
+
+
+def ground_heightfield(mesh, cell=0.05, spacing=0.03):
+    """Cloth simulation filter on area-uniform samples; ground height per cell, holes filled, outliers smoothed."""
+    import CSF
+    pts = np.asarray(mesh.sample_points_uniformly(int(mesh.get_surface_area() / spacing ** 2)).points)
+    csf = CSF.CSF()
+    csf.params.bSloopSmooth, csf.params.cloth_resolution, csf.params.rigidness = True, 0.1, 2
+    csf.params.class_threshold, csf.params.interations = 0.1, 500
+    csf.setPointCloud(pts)
+    ground, other = CSF.VecInt(), CSF.VecInt()
+    csf.do_filtering(ground, other, exportCloth=False)
+    ground, other = pts[np.array(ground)], pts[np.array(other)]
+    lo = pts[:, :2].min(axis=0)
+    shape = (np.ceil((pts[:, :2].max(axis=0) - lo) / cell).astype(int) + 1)[::-1]  # rows along y, as MuJoCo stores them
+    ij = np.round((ground[:, :2] - lo) / cell).astype(int)
+    flat = ij[:, 1] * shape[1] + ij[:, 0]
+    count = np.bincount(flat, minlength=shape[0] * shape[1])
+    height = (np.bincount(flat, ground[:, 2], minlength=count.size) / np.maximum(count, 1)).reshape(shape)
+    seen = count.reshape(shape) > 0
+    nearest = ndimage.distance_transform_edt(~seen, return_distances=False, return_indices=True)
+    height = ndimage.median_filter(height[nearest[0], nearest[1]], size=3)
+    return {"height": height, "seen": seen, "lo": lo, "cell": cell, "ground": ground, "other": other}
+
+
+def height_at(hf, xy):
+    ij = np.clip(np.round((xy - hf["lo"]) / hf["cell"]).astype(int), 0, np.array(hf["height"].shape[::-1]) - 1)
+    return hf["height"][ij[..., 1], ij[..., 0]]
+
+
+def greedy_boxes(solid):
+    """Maximal axis-aligned boxes covering a voxel solid exactly: grow up first (the solid is filled columns),
+    then along x, then along y. Returns (i0, j0, k0, i1, j1, k1) voxel ranges, end exclusive."""
+    s = solid.copy()
+    nx, ny, nz = s.shape
+    out = []
+    for i, j, k in np.argwhere(s):
+        if not s[i, j, k]:
+            continue
+        k2 = k
+        while k2 + 1 < nz and s[i, j, k2 + 1]:
+            k2 += 1
+        i2 = i
+        while i2 + 1 < nx and s[i2 + 1, j, k:k2 + 1].all():
+            i2 += 1
+        j2 = j
+        while j2 + 1 < ny and s[i:i2 + 1, j2 + 1, k:k2 + 1].all():
+            j2 += 1
+        s[i:i2 + 1, j:j2 + 1, k:k2 + 1] = False
+        out.append((i, j, k, i2 + 1, j2 + 1, k2 + 1))
+    return out
+
+
+def object_boxes(hf, z_max, cell=0.05, box_cell=0.10):
+    """Everything standing on the ground as boxes, exact to the 5 cm grid.
+
+    A scanned object is an open surface (no bottom, often no back), so it is made solid first: each voxel column
+    is filled from its lowest to its highest voxel, and down to the ground when it starts within 10 cm of it
+    (crates, walls, piles). Overhangs (canopies, decks, lintels) keep the gap below them. The solid is covered
+    by greedily merged boxes. CoACD was dropped here: its error bound is relative to the part, so a 50 m facade
+    got meters of slack. Boxes starting 2 m above the ground or more than 1 m from any walkable cell are left
+    out, since a walking robot never reaches them. box_cell coarsens the solid before merging (any voxel
+    occupied makes the coarse one solid), so obstacles grow by at most that much and the box count drops.
+    """
+    above = hf["other"][:, 2] - height_at(hf, hf["other"][:, :2])
+    keep = (above > 0.05) & (above < z_max)
+    pts, above = hf["other"][keep], above[keep]
+    lo = np.array([*hf["lo"], min(pts[:, 2].min(), hf["height"].min())])
+    idx = np.floor((pts - lo) / cell).astype(int)
+    occ = np.zeros(idx.max(axis=0) + 1, dtype=bool)
+    occ[tuple(idx.T)] = True
+    labels, _ = ndimage.label(occ, structure=np.ones((3, 3, 3)))
+    sizes = np.bincount(labels.ravel())
+    slices = ndimage.find_objects(labels)
+    # cells something stands on (for the ground check), and the distance from each cell to walkable ground
+    low = np.zeros(hf["height"].shape, dtype=bool)
+    ij = np.clip(np.round((pts[above < 0.5, :2] - hf["lo"]) / cell).astype(int), 0, np.array(low.shape[::-1]) - 1)
+    low[ij[:, 1], ij[:, 0]] = True
+    walkable = np.zeros(occ.shape[:2], dtype=bool)
+    n = np.minimum(occ.shape[:2], hf["seen"].T.shape)
+    walkable[:n[0], :n[1]] = (hf["seen"] & ~low).T[:n[0], :n[1]]
+    far = ndimage.distance_transform_edt(~walkable) * cell
+    boxes = []
+    for label in np.nonzero(sizes[1:] >= 30)[0] + 1:  # smaller blobs are scan noise
+        sl = slices[label - 1]
+        part = labels[sl] == label
+        i, j = np.mgrid[sl[0], sl[1]]
+        ground_k = np.floor((height_at(hf, lo[:2] + (np.stack([i, j], axis=-1) + 0.5) * cell) - lo[2]) / cell).astype(int) - sl[2].start
+        k = np.arange(part.shape[2])
+        has = part.any(axis=2)
+        bottom = np.where(has, np.argmax(part, axis=2), 0)
+        top = np.where(has, part.shape[2] - 1 - np.argmax(part[..., ::-1], axis=2), -1)
+        start_k = np.where(bottom - ground_k <= 2, np.maximum(ground_k, 0), bottom)
+        solid = ((k >= start_k[..., None]) & (k <= top[..., None])) | part  # inpainted ground can sit above a low object
+        start = np.array([x.start for x in sl])
+        f = max(int(round(box_cell / cell)), 1)
+        if f > 1:  # pad to a multiple of f, then any-pool
+            solid = np.pad(solid, [(0, -n % f) for n in solid.shape])
+            solid = solid.reshape(solid.shape[0] // f, f, solid.shape[1] // f, f, solid.shape[2] // f, f).any(axis=(1, 3, 5))
+        for b in greedy_boxes(solid):
+            a0, a1 = start + f * np.array(b[:3]), start + f * np.array(b[3:])
+            if far[a0[0]:a1[0], a0[1]:a1[1]].min() > 1.0:
+                continue
+            p0, p1 = lo + a0 * cell, lo + a1 * cell
+            center = (p0 + p1) / 2
+            if p0[2] - height_at(hf, center[:2]) > 2.0:
+                continue
+            boxes.append({"pos": center.round(4).tolist(), "half": ((p1 - p0) / 2).round(4).tolist()})
+    return boxes, pts, low
+
+
+def write_heightfield(hf, out):
+    """MuJoCo binary heightfield: int32 nrow, ncol, then float32 heights (normalized by MuJoCo to size_z)."""
+    h = hf["height"].astype(np.float32)
+    with open(out / "ground.bin", "wb") as f:
+        np.array(h.shape, dtype=np.int32).tofile(f)
+        h.tofile(f)
+    np.save(out / "ground_heights.npy", np.where(hf["seen"], h, np.nan))  # what was actually scanned, for checks
+    rows, cols = h.shape
+    z0, dz = float(h.min()), max(float(h.max() - h.min()), 0.01)
+    center = hf["lo"] + np.array([cols - 1, rows - 1]) * hf["cell"] / 2
+    return {"origin": hf["lo"].tolist(), "cell": hf["cell"], "shape": [rows, cols], "z_min": z0, "z_range": dz,
+            "size": [(cols - 1) * hf["cell"] / 2, (rows - 1) * hf["cell"] / 2, dz, 0.5], "center": center.tolist()}
 
 
 def main():
@@ -222,6 +356,8 @@ def main():
     p.add_argument("--max-triangles", type=int, default=200_000)
     p.add_argument("--texture-size", type=int, default=2048)
     p.add_argument("--visual-obj", type=Path, help="already-textured OBJ to use as the visual instead of baking vertex colors")
+    p.add_argument("--outdoor", action="store_true", help="heightfield ground and per-object boxes, for uneven sites")
+    p.add_argument("--box-cell", type=float, default=0.10, help="outdoor object boxes are merged on this grid (m)")
     a = p.parse_args()
     out = a.frames / "mujoco"
     out.mkdir(exist_ok=True)
@@ -232,7 +368,10 @@ def main():
     extra = np.asarray(o3d.io.read_point_cloud(str(lidar_map)).points) if lidar_map.exists() else None
     T, walls = level(mesh, poses, extra)
     mesh.transform(T)
-    mesh = crop(mesh, -0.2, a.crop_height)
+    hf = None
+    if a.outdoor:
+        hf = ground_heightfield(mesh.simplify_vertex_clustering(0.02))  # 2 cm is finer than the 5 cm grid, and faster
+    mesh = crop(mesh, -0.2, a.crop_height, hf)
     if len(mesh.triangles) > a.max_triangles:
         mesh = mesh.simplify_quadric_decimation(a.max_triangles)
     if a.visual_obj:
@@ -240,14 +379,29 @@ def main():
     else:
         write_textured_obj(mesh, out, a.texture_size)
 
-    boxes, hulls, floor_pts, clutter = collision_proxies(mesh, out, a.crop_height)
+    objects = []
+    if a.outdoor:
+        objects, clutter, low = object_boxes(hf, a.crop_height, box_cell=a.box_cell)
+        hf["seen"] &= ~low  # the ground check skips cells something stands on
+        boxes, hulls, floor_pts = [], [], hf["ground"]
+    else:
+        boxes, hulls, floor_pts, clutter = collision_proxies(mesh, out, a.crop_height)
     n_hulls = len(hulls)
     spawn, clearance, waypoints = spawn_point(floor_pts, clutter)
     v = np.asarray(mesh.vertices)
     info = {"spawn_xy": spawn, "clearance_m": clearance, "size_m": (v.max(0) - v.min(0)).round(2).tolist(),
             "crop_height": a.crop_height, "triangles": len(mesh.triangles), "wall_boxes": len(boxes),
             "clutter_hulls": n_hulls, "waypoints": waypoints, "walls": [{k: np.asarray(v).tolist() for k, v in b.items()} for b in boxes],
-            "transform_from_scan": T.tolist()}
+            "object_boxes": objects, "transform_from_scan": T.tolist()}
+    ground_asset = ground_geom = ""
+    if a.outdoor:
+        g = info["heightfield"] = write_heightfield(hf, out)
+        info["spawn_z"] = float(height_at(hf, np.array(spawn)))
+        ground_asset = f'    <hfield name="ground" file="ground.bin" size="{" ".join(f"{x:.4f}" for x in g["size"])}"/>\n'
+        ground_geom = (f'    <geom name="ground" type="hfield" hfield="ground" class="collision" pos="{g["center"][0]:.4f} {g["center"][1]:.4f} {g["z_min"]:.4f}"/>\n'
+                       # drawn 1 cm under the scan, so holes in the scanned ground show ground instead of sky
+                       f'    <geom name="ground_visual" type="hfield" hfield="ground" contype="0" conaffinity="0" rgba="0.5 0.48 0.44 1" '
+                       f'pos="{g["center"][0]:.4f} {g["center"][1]:.4f} {g["z_min"] - 0.01:.4f}"/>\n')
     (out / "scene_info.json").write_text(json.dumps(info, indent=2))
     # Vertices only: MuJoCo builds each piece's convex hull itself.
     hull_assets = "".join(f'    <mesh name="hull_{i:02d}" vertex="{" ".join(f"{x:.4f}" for x in v.ravel())}"/>\n' for i, v in enumerate(hulls))
@@ -255,6 +409,9 @@ def main():
     box_geoms = "".join(
         f'    <geom name="wall_{i:02d}" type="box" class="collision" pos="{b["pos"][0]:.3f} {b["pos"][1]:.3f} {b["pos"][2]:.3f}" '
         f'size="{b["half"][0]:.3f} {b["half"][1]:.3f} {b["half"][2]:.3f}" euler="0 0 {b["yaw"]:.4f}"/>\n' for i, b in enumerate(boxes))
+    box_geoms += "".join(
+        f'    <geom name="obj_{i:04d}" type="box" class="collision" pos="{b["pos"][0]:.3f} {b["pos"][1]:.3f} {b["pos"][2]:.3f}" '
+        f'size="{b["half"][0]:.3f} {b["half"][1]:.3f} {b["half"][2]:.3f}"/>\n' for i, b in enumerate(objects))
     (out / "scene.xml").write_text(f"""<mujoco model="reconstructed scene">
   <compiler angle="radian"/>
   <visual><headlight diffuse="0.7 0.7 0.7" ambient="0.35 0.35 0.35"/><global azimuth="135" elevation="-35"/></visual>
@@ -264,17 +421,16 @@ def main():
     <texture name="scan" type="2d" file="scene_color.png"/>
     <material name="scan" texture="scan" specular="0.1" emission="0.3"/>
     <mesh name="scan" file="scene.obj" inertia="shell"/>
-{hull_assets}  </asset>
+{ground_asset}{hull_assets}  </asset>
   <worldbody>
     <light pos="0 0 6" dir="0 0 -1" directional="true" diffuse="0.5 0.5 0.5"/>
-    <geom name="floor" type="plane" size="0 0 0.05" rgba="0.35 0.35 0.33 1"/>
-    <geom name="scan" type="mesh" mesh="scan" material="scan" contype="0" conaffinity="0"/>
-{box_geoms}{hull_geoms}    <site name="spawn" pos="{spawn[0]:.3f} {spawn[1]:.3f} 0.01" size="0.08" rgba="0.2 1 0.3 0.6"/>
+{ground_geom or '    <geom name="floor" type="plane" size="0 0 0.05" rgba="0.35 0.35 0.33 1"/>' + chr(10)}    <geom name="scan" type="mesh" mesh="scan" material="scan" contype="0" conaffinity="0"/>
+{box_geoms}{hull_geoms}    <site name="spawn" pos="{spawn[0]:.3f} {spawn[1]:.3f} {info.get("spawn_z", 0) + 0.01:.3f}" size="0.08" rgba="0.2 1 0.3 0.6"/>
   </worldbody>
 </mujoco>
 """)
-    print(f"scene {info['size_m'][0]:.1f} x {info['size_m'][1]:.1f} m, {len(mesh.triangles)} triangles; collisions: floor plane, "
-          f"{len(boxes)} wall boxes, {n_hulls} clutter hulls; spawn ({spawn[0]:+.2f}, {spawn[1]:+.2f}) with {clearance:.2f} m clearance "
+    print(f"scene {info['size_m'][0]:.1f} x {info['size_m'][1]:.1f} m, {len(mesh.triangles)} triangles; collisions: {'heightfield ground' if a.outdoor else 'floor plane'}, "
+          f"{len(boxes)} wall boxes, {n_hulls} clutter hulls, {len(objects)} object boxes; spawn ({spawn[0]:+.2f}, {spawn[1]:+.2f}) with {clearance:.2f} m clearance "
           f"-> {out / 'scene.xml'}")
 
 

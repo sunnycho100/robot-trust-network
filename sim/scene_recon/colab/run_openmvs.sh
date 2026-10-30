@@ -24,7 +24,8 @@ echo "== 2. score against the laser scan"
 python - <<'EOF'
 import numpy as np, open3d as o3d
 m = o3d.io.read_triangle_mesh("scene_dense_mesh_refine.ply")
-o3d.t.io.write_point_cloud("mesh_points.ply", o3d.t.geometry.PointCloud(np.asarray(m.sample_points_uniformly(1_000_000).points, dtype=np.float32)))
+n = int(min(m.get_surface_area() / 0.01 ** 2, 40e6))  # 1 cm spacing, as in eth3d_prep.py
+o3d.t.io.write_point_cloud("mesh_points.ply", o3d.t.geometry.PointCloud(np.asarray(m.sample_points_uniformly(n).points, dtype=np.float32)))
 p = o3d.io.read_point_cloud("scene_dense.ply")
 o3d.t.io.write_point_cloud("dense_points.ply", o3d.t.geometry.PointCloud(np.asarray(p.points, dtype=np.float32)))
 EOF

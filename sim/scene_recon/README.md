@@ -16,9 +16,11 @@ images (+ depth, LiDAR or known poses)
 | `lidar_poses.py` | LiDAR ICP odometry and the camera to LiDAR extrinsic, for when camera odometry drifts |
 | `reconstruct.py` | RGB-D TSDF fusion, with known poses or chained RGB-D odometry |
 | `build_scene.py` | Levels the mesh, fits collision proxies, writes `scene.xml` and `scene_info.json` |
-| `check_collisions.py` | Wall box to mesh distance, free-space IoU at 0.1 m and 1.0 m |
-| `walk_in_scene.py` | G1 walking policy to open and near-obstacle goals, the same goals on a bare plane, and walking into every wall |
-| `colab/` | Remote GPU runs: `setup.sh`, `run_eth3d.sh`, `compare_splat.sh` (vid2scene comparison), `run_openmvs.sh` |
+| `check_collisions.py` | Wall boxes and heightfield vs the scan mesh, surface IoU of the proxies at 0.5 m and 1.0 m above the ground |
+| `walk_in_scene.py` | G1 walking policy to reachable open and near-obstacle goals, the same goals on a bare plane, and walking into every wall |
+| `export_scene.py` | Isaac-ready export (URDF, meshes, terrain OBJ) and a CooHOI two-humanoid box-carry layout on free scanned ground |
+| `test_outdoor.py` | Self-check of the outdoor path on a synthetic site (slope, curb, crate, canopy) |
+| `colab/` | Remote GPU runs: `setup.sh`; `run_eth3d.sh` and `mesh_ab.sh` (ETH3D DSLR); `run_rig.sh` (ETH3D rig video); `compare_splat.sh` (vid2scene comparison); `run_outdoor.sh` (outdoor scene, export, preview); `run_hilti.sh` (Hilti 2022 construction site) |
 
 ## Running on Colab
 
@@ -35,21 +37,32 @@ The code is expected at `/content/robosim` (this repo's `sim/scene_recon` and th
 
 ## Results so far
 
-ETH3D `pipes`, COLMAP PatchMatch on ETH3D's poses (2000 px), scored against the laser scan:
+All scores are against a laser scan (ETH3D evaluator), F1 at 2 / 5 cm. Meshes are sampled at 1 cm for scoring.
 
-| | Accuracy 2 / 5 cm | Completeness 2 / 5 cm | F1 2 / 5 cm |
-|---|---|---|---|
-| Fused points | 97.1 / 98.1 % | 22.1 / 34.3 % | 0.36 / 0.51 |
-| Poisson mesh | 79.8 / 87.1 % | 34.0 / 40.4 % | 0.48 / 0.55 |
+**Tailored vs realistic capture**, same scene (ETH3D `delivery_area`), same pipeline, the dataset's own poses:
 
-Points are accurate but sparse, so the next runs use a higher resolution and a looser fusion filter, on `delivery_area`, a larger scene.
+| Capture | Points | Mesh |
+|---|---|---|
+| Tripod DSLR, 44 photos, 3200 px | 0.78 / 0.88 | 0.74 / 0.87 (Delaunay) |
+| Handheld 4-camera rig video, 948 grayscale frames | 0.38 / 0.54 | 0.37 / 0.50 |
 
-## vid2scene comparison
+**Meshers** on the DSLR points: Open3D Poisson 0.71 / 0.84, COLMAP Poisson (depth 12) 0.72 / 0.83, COLMAP Delaunay 0.74 / 0.87.
 
-[vid2scene](https://github.com/samuelm2/vid2scene) turns a phone video into Gaussian splats (GLOMAP poses, then its gsplat fork). Splats render well but carry no mesh, metric scale or gravity direction, so MuJoCo can't use them directly. `colab/compare_splat.sh` runs both methods on the same 1920 px images, poses and 38 training views. For the splats, it renders their depth and fuses it into a mesh. Both meshes then go through the same MuJoCo pipeline. It reports pose error, ETH3D F1, held-out view PSNR, SSIM and LPIPS, floor flatness, collision checks and the walk test. Features are SIFT instead of vid2scene's ALIKED and LightGlue, so the row is "GLOMAP-SIFT + vid2scene trainer".
+**vid2scene vs ours**, same 1920 px images, same GLOMAP-SIFT poses (44/44 registered, 2.3 cm median position error), same 38 training views, 6 held-out views:
+
+| | PSNR | LPIPS | Geometry | MuJoCo scene |
+|---|---|---|---|---|
+| vid2scene splats | 19.9 | 0.32 | n/a | none |
+| Splat depth, meshed like ours | 11.2 | 0.70 | 0.07 / 0.16 | no floor found |
+| Ours (PatchMatch) | 13.7 | 0.63 | 0.30 / 0.56 | ground 1.6 cm, 0 falls |
+
+Splats win on looks and lose on geometry, so collisions come from the MVS mesh and splats are only a visual layer.
+
+**Collision checks** (`check_collisions.py`), outdoor path on `delivery_area`: heightfield vs mesh ground 1.0 cm (95th percentile). Object boxes on a 10 cm grid: 9,568 boxes, surface IoU 0.46 and 0.45 at 0.5 m and 1.0 m above the ground (5 cm grid: 34,756 boxes, 0.48 and 0.47). G1 walk test 0 falls, same goals reached as on a bare plane.
 
 ## Choices so far
 
-- A plane for the floor, boxes for walls and convex hulls for clutter. No heightfield indoors, since it erases thin walls and can't represent overhangs.
+- Indoors: a plane for the floor, boxes for walls and convex hulls for clutter. No heightfield indoors, since it erases thin walls and can't represent overhangs.
+- Outdoors and on sites (`--outdoor`): a heightfield from cloth-simulation ground points (curbs, slopes), and everything standing on it made solid on a 5 cm grid and covered by merged boxes on a 10 cm grid (`--box-cell`). Overhangs keep the gap below them. CoACD was dropped here because its error bound scales with the part, so a 50 m facade got meters of slack.
 - LiDAR poses when available. Camera-only odometry on the HCIC construction bag drifted into doubled walls.
 - ETH3D for scoring, because it has a laser-scan ground truth.

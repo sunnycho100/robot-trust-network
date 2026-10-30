@@ -1,7 +1,7 @@
 """Splats (vid2scene trainer) vs our dense mesh on the same poses and the same training views.
 
-    python compare_eval.py geometry V D   # pose error, Sim3 into the laser-scan frame, splat render + TSDF mesh
-    python compare_eval.py report V D W   # held-out view quality for every mesh and the splats, floor flatness, table
+    python compare_eval.py geometry V D   # pose error, Sim3 into the laser-scan frame, splat depth to points
+    python compare_eval.py report V D W   # held-out view quality for every mesh and the splats, scores, table
 
 V is the 1920 px workspace (images/, sparse/0 from GLOMAP-style global SfM, gs/ splats, mvs/ our dense run),
 D the ETH3D scene, W our 3200 px run on ETH3D's own poses (reference row).
@@ -94,9 +94,17 @@ def geometry(V, D):
     pc = o3d.io.read_point_cloud(str(V / "mvs" / "fused_local.ply"))  # our dense points, into the laser-scan frame
     pc.points = o3d.utility.Vector3dVector(np.asarray(pc.points) @ M[:3, :3].T + M[:3, 3])
     pc.normals = o3d.utility.Vector3dVector(np.asarray(pc.normals) @ (M[:3, :3] / s).T)
-    o3d.io.write_point_cloud(str(V / "mvs" / "fused.ply"), pc)
+    write_float32(pc, V / "mvs" / "fused.ply")
 
-    splat_mesh(V, D, M, test_names(V), poses)
+    splat_points(V, D, M, test_names(V), poses)
+
+
+def write_float32(pc, path):
+    """fused.ply for meshing, plus fused_xyz.ply for the ETH3D evaluator, which scores double coordinates and
+    float colors as an empty cloud."""
+    o3d.io.write_point_cloud(str(path), pc)
+    xyz = np.asarray(pc.points, dtype=np.float32)
+    o3d.t.io.write_point_cloud(str(path.with_name(path.stem + "_xyz.ply")), o3d.t.geometry.PointCloud(xyz))
 
 
 def load_splats(V):
@@ -123,40 +131,53 @@ def render_splats(splats, c2w, K, w, h):
     return np.clip(out[..., :3], 0, 1), out[..., 3], alpha
 
 
-def splat_mesh(V, D, M, tests, poses):
-    """Expected depth from the splats at every training view (alpha < 0.5 masked), TSDF fused at 1 cm."""
+def splat_points(V, D, M, tests, poses):
+    """Expected depth from the splats at every training view (alpha < 0.5 masked), back-projected into the
+    laser-scan frame. This is the splat counterpart of COLMAP's fused.ply and is meshed the same way, so the
+    only difference between the two rows is where the depth comes from. Like PatchMatch fusion, a point is kept
+    only if at least 2 other views' renders agree with its depth within 1% (COLMAP fusion's max_depth_error),
+    since expected depth smears at edges."""
     parser, splats = load_splats(V)
     N = M @ np.linalg.inv(parser.transform)  # gsplat's normalized frame -> laser-scan frame
     s = np.cbrt(np.linalg.det(N[:3, :3]))
-    vol = o3d.pipelines.integration.ScalableTSDFVolume(voxel_length=0.01 / s, sdf_trunc=0.04 / s,
-                                                       color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
+    views = []
     for i, name in enumerate(parser.image_names):
-        if name in tests:
-            continue
-        K = parser.Ks_dict[parser.camera_ids[i]]
-        w, h = parser.imsize_dict[parser.camera_ids[i]]
-        rgb, depth, alpha = render_splats(splats, parser.camtoworlds[i], K, w, h)
-        depth = np.where(alpha > 0.5, depth, 0).astype(np.float32)
-        rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            o3d.geometry.Image((rgb * 255).astype(np.uint8)), o3d.geometry.Image(depth), depth_scale=1.0,
-            depth_trunc=30.0 / s, convert_rgb_to_intensity=False)
-        vol.integrate(rgbd, o3d.camera.PinholeCameraIntrinsic(w, h, K[0, 0], K[1, 1], K[0, 2], K[1, 2]),
-                      np.linalg.inv(parser.camtoworlds[i]))
-    mesh = vol.extract_triangle_mesh()
-    mesh.transform(N)  # uniform scale, so normals survive
-    clusters, sizes, _ = mesh.cluster_connected_triangles()
-    clusters, sizes = np.asarray(clusters), np.asarray(sizes)
-    mesh.remove_triangles_by_mask(sizes[clusters] < 0.005 * len(clusters))  # same fragment cleanup as eth3d_prep
-    mesh.remove_unreferenced_vertices()
-    mesh.compute_vertex_normals()
-    frames = V / "splat" / "frames"
-    frames.mkdir(parents=True, exist_ok=True)
-    o3d.io.write_triangle_mesh(str(frames / "mesh.ply"), mesh)
-    gt, _ = read_model(D / "dslr_calibration_undistorted")
-    np.savetxt(frames / "poses.txt", np.array(list(gt.values())).reshape(-1, 16))
-    sample = np.asarray(mesh.sample_points_uniformly(1_000_000).points, dtype=np.float32)
-    o3d.t.io.write_point_cloud(str(V / "splat" / "mesh_points.ply"), o3d.t.geometry.PointCloud(sample))
-    print(f"splat TSDF mesh: {len(mesh.triangles)} triangles", flush=True)
+        if name not in tests:
+            K = parser.Ks_dict[parser.camera_ids[i]]
+            w, h = parser.imsize_dict[parser.camera_ids[i]]
+            rgb, depth, alpha = render_splats(splats, parser.camtoworlds[i], K, w, h)
+            views.append((K, w, h, rgb, np.where(alpha > 0.5, depth, 0) * s, N @ parser.camtoworlds[i]))  # depth in metres
+    merged = o3d.geometry.PointCloud()
+    for a, (K, w, h, rgb, depth, c2w) in enumerate(views):
+        r, c = np.mgrid[0:h:2, 0:w:2]
+        d = depth[r, c]
+        ok = (d > 0) & (d < 30)
+        x = np.stack([(c[ok] + 0.5 - K[0, 2]) * d[ok] / K[0, 0], (r[ok] + 0.5 - K[1, 2]) * d[ok] / K[1, 1], d[ok]], axis=1)
+        world = x @ (c2w[:3, :3] / s).T + c2w[:3, 3]
+        agree = np.zeros(len(world), dtype=int)
+        for b, (Kb, wb, hb, _, depth_b, c2w_b) in enumerate(views):
+            if a == b:
+                continue
+            Rb = c2w_b[:3, :3] / s
+            p = (world - c2w_b[:3, 3]) @ Rb  # into camera b (Rb is orthonormal, so its inverse is its transpose)
+            z = p[:, 2]
+            u = np.floor(p[:, 0] / np.maximum(z, 1e-6) * Kb[0, 0] + Kb[0, 2]).astype(int)
+            v = np.floor(p[:, 1] / np.maximum(z, 1e-6) * Kb[1, 1] + Kb[1, 2]).astype(int)
+            inside = (z > 0) & (u >= 0) & (u < wb) & (v >= 0) & (v < hb)
+            db = np.zeros(len(z))
+            db[inside] = depth_b[v[inside], u[inside]]
+            agree += inside & (db > 0) & (np.abs(db - z) < 0.01 * z)
+        keep = agree >= 2
+        pc = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(world[keep]))
+        pc.colors = o3d.utility.Vector3dVector(rgb[r, c][ok][keep])
+        pc.estimate_normals(o3d.geometry.KDTreeSearchParamKNN(20))
+        pc.orient_normals_towards_camera_location(c2w[:3, 3])
+        print(f"view {a}: kept {keep.sum()} of {len(keep)} points", flush=True)
+        merged += pc
+    merged = merged.voxel_down_sample(0.005)
+    (V / "splat").mkdir(exist_ok=True)
+    write_float32(merged, V / "splat" / "fused.ply")
+    print(f"splat depth: {len(merged.points)} points", flush=True)
     (V / "poses.json").write_text(json.dumps(poses, indent=2))
 
 
@@ -184,16 +205,6 @@ def scores(pred, gt, mask, metrics):
             "ssim": float(metrics["ssim"](p, g)), "lpips": float(metrics["lpips"](p, g)), "coverage": float(mask.mean())}
 
 
-def floor_rms(frames):
-    info = json.loads((frames / "mujoco" / "scene_info.json").read_text())
-    mesh = o3d.io.read_triangle_mesh(str(frames / "mesh.ply"))
-    mesh.transform(np.array(info["transform_from_scan"]))
-    mesh.compute_vertex_normals()
-    z, nz = np.asarray(mesh.vertices)[:, 2], np.asarray(mesh.vertex_normals)[:, 2]
-    floor = (np.abs(z) < 0.15) & (np.abs(nz) > 0.9)
-    return round(float(np.sqrt((z[floor] ** 2).mean())) * 100, 2)
-
-
 def eth3d(path):
     lines = Path(path).read_text().splitlines()
     pick = lambda key: [float(x) for x in next(l for l in lines if l.startswith(key)).split(":")[1].split()]
@@ -212,7 +223,7 @@ def report(V, D, W):
     M = np.loadtxt(V / "sim3.txt")
     parser, splats = load_splats(V)
     tests = test_names(V)
-    rows = {"splats (vid2scene trainer)": [], "splat TSDF mesh": [], "ours 1920 (same poses, 38 views)": [],
+    rows = {"splats (vid2scene trainer)": [], "splat depth, Poisson mesh": [], "ours 1920 (same poses, 38 views)": [],
             "ours 3200 (ETH3D poses, all 44 views)": []}
     for name in tests:
         photo = imageio.imread(V / "images" / name)[..., :3] / 255.0
@@ -222,7 +233,7 @@ def report(V, D, W):
         rows["splats (vid2scene trainer)"].append(scores(rgb, photo, alpha > 0.5, metrics))
         Ke, we, he = est_intr[name]
         pose = apply(M, est[name])  # same pose the splats see, in the laser-scan frame
-        for key, mesh in (("splat TSDF mesh", V / "splat" / "frames" / "mesh.ply"),
+        for key, mesh in (("splat depth, Poisson mesh", V / "splat" / "frames" / "mesh.ply"),
                           ("ours 1920 (same poses, 38 views)", V / "mvs" / "frames" / "mesh.ply")):
             rgb, hit = raycast(mesh, pose, Ke, we, he)
             rows[key].append(scores(rgb, photo, hit, metrics))
@@ -230,15 +241,16 @@ def report(V, D, W):
         rgb, hit = raycast(W / "frames" / "mesh.ply", gt[name], Kg, wg, hg)
         rows["ours 3200 (ETH3D poses, all 44 views)"].append(scores(rgb, photo, hit, metrics))
     out = {"poses": json.loads((V / "poses.json").read_text()), "methods": {}}
-    dirs = {"splat TSDF mesh": V / "splat", "ours 1920 (same poses, 38 views)": V / "mvs", "ours 3200 (ETH3D poses, all 44 views)": W}
+    dirs = {"splat depth, Poisson mesh": V / "splat", "ours 1920 (same poses, 38 views)": V / "mvs"}
     for key, r in rows.items():
         entry = {"views": {k: round(float(np.mean([x[k] for x in r])), 3) for k in r[0]}}
         if key in dirs:
             d = dirs[key]
+            entry["eth3d_points"] = eth3d(d / "eval_fused_xyz.txt")
             entry["eth3d_mesh"] = eth3d(d / "eval_mesh_points.txt")
-            entry["floor_rms_cm"] = floor_rms(d / "frames")
-            entry["collisions"] = json.loads((d / "frames" / "mujoco" / "collision_check.json").read_text())
-            entry["walk"] = json.loads((d / "frames" / "mujoco" / "walk_results.json").read_text())
+            for field, name in (("collisions", "collision_check.json"), ("walk", "walk_results.json")):
+                f = d / "frames" / "mujoco" / name
+                entry[field] = json.loads(f.read_text()) if f.exists() else "no scene (build_scene found no floor)"
         out["methods"][key] = entry
         print(key, json.dumps(entry), flush=True)
     timing = V / "timing.txt"
