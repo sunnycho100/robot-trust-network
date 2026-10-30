@@ -8,6 +8,7 @@ check does not cancel an approval that is already in effect.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import threading
@@ -39,6 +40,39 @@ def load_trust():
     import protocol
 
     return protocol, policy
+
+
+def check_sim_message(verifier, message):
+    """Contain malformed input at the sim boundary without changing the shared verifier."""
+    if isinstance(message, dict):
+        for field in ("from", "to", "nonce", "sig", "action", "request", "reason",
+                      "kind", "reply_to", "phase", "result"):
+            if field in message and not isinstance(message[field], str):
+                return False, f"malformed message: {field} must be text"
+        if "time" in message:
+            stamp = message["time"]
+            if type(stamp) not in (int, float):
+                return False, "malformed message: time must be a finite number"
+            try:
+                if not math.isfinite(stamp):
+                    return False, "malformed message: time must be a finite number"
+            except OverflowError:
+                return False, "malformed message: time is out of range"
+        if message.get("kind", "request") not in ("request", "response"):
+            return False, "malformed message: unknown kind"
+    try:
+        return verifier.check(message)
+    except (TypeError, ValueError, KeyError, OverflowError, RecursionError):
+        return False, "malformed message"
+
+
+def action_label(message) -> str:
+    """Keep untrusted labels bounded and printable even in redirected Windows output."""
+    action = message.get("action") if isinstance(message, dict) else None
+    if not isinstance(action, str):
+        return "message"
+    label = action[:40].encode("ascii", errors="backslashreplace").decode("ascii")
+    return label[:40] + ("..." if len(action) > 40 or len(label) > 40 else "")
 
 
 def ensure_keys(protocol) -> None:
@@ -134,10 +168,10 @@ class TrustFollower:
 
     def receive(self, message, now: float) -> str:
         with self._lock:
-            verified, reason = self.verifier.check(message)
+            verified, reason = check_sim_message(self.verifier, message)
             if not verified:
                 self.rejection = reason
-                self.rejected_action = message.get("action") if isinstance(message, dict) else None
+                self.rejected_action = action_label(message)
                 self.rejection_at = now
                 return "rejected"
             if isinstance(message, dict) and message.get("kind") == "response":
@@ -153,7 +187,7 @@ class TrustFollower:
             _, message, decision = self.pending
             self.pending = None
             self.grant = decision
-            self.grant_action = message.get("action")
+            self.grant_action = action_label(message)
             self.grant_at = now
             return message, decision
 
@@ -234,7 +268,7 @@ class TrustMailbox:
 
     def ingest_reply(self, payload) -> None:
         message = _decode(payload)
-        verified, reason = self.leader_verifier.check(message)
+        verified, reason = check_sim_message(self.leader_verifier, message)
         if not verified:
             self.reply_text = f"Ignored reply: {reason}"
             return
@@ -257,7 +291,7 @@ class TrustMailbox:
 def _decode(payload):
     try:
         return json.loads(payload)
-    except (TypeError, ValueError, json.JSONDecodeError):
+    except (TypeError, ValueError, RecursionError):
         if isinstance(payload, bytes):
             return payload.decode(errors="replace")
         return payload

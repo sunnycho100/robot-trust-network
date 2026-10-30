@@ -87,8 +87,43 @@ The follower moves only after a signed request is allowed. `--trust 10` denies i
 
 The export is written to `assets/houses/`.
 
+Add `--event-log path/to/house.jsonl` to either house process to append structured local
+events. Each record has a run ID and separate simulation, Unix and monotonic timestamps.
+Policy decisions, execution results and authenticated peer reports are separate events.
+The requester reports FAILED and exits nonzero when discovery, cooperation or the return
+inspection fails. COMPLETE covers the cooperation tasks; it does not claim that the requester
+independently observed the attack rejections in the other house.
+
+The house executor supports `status` with ALLOW, `verify_package` with ALLOW, and
+`verify_and_unlock` with PARTIAL. Other policy-approved actions receive a signed DENY because
+the house simulator has no executor for them. This does not change the shared network policy.
+In the scripted role, house-1 accepts only one return inspection from house-2; unrelated or
+late requests are refused before acknowledgement. Unexecuted queued work receives a final
+DENY when the story ends. Either house exits nonzero if its recorded request flow failed or
+it stops with accepted work pending, including the decision delay and return walk.
+
 ## Tests
 
 ```bash
 python -m pytest
 ```
+
+If Windows denies access to pytest's system temporary directory, use a dedicated scratch
+directory: `python -m pytest --basetemp .pytest_cache/pytest-run` (pytest replaces that directory).
+
+For a real broker and two headless MuJoCo processes, with temporary keys and saved event logs:
+
+```bash
+python tools/check_house_flow.py --robot g1 --output .pytest_cache/check-g1
+python tools/check_house_flow.py --robot go1 --output .pytest_cache/check-go1
+python tools/check_house_flow.py --robot g1 --missing-peer --output .pytest_cache/check-no-peer
+python tools/check_house_flow.py --robot g1 --responder-cutoff --output .pytest_cache/check-cutoff
+```
+
+Choose a new output directory each run. The tool starts its own loopback Mosquitto on a free
+port and terminates only its own processes. Pass `--mosquitto /path/to/mosquitto` if needed.
+The positive checks inject malformed and unsupported requests before the story, then require
+both cooperation directions to finish without fall/timeout logs. The negative check requires
+requester failure and no false COMPLETE. The cutoff check requires a responder interrupted
+while awaiting its return reply to fail with exit code 1. These are smoke checks, not the full
+C7 fault/physics matrix.
