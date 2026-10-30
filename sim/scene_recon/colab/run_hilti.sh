@@ -14,20 +14,21 @@ if [ ! -f $W/db.db ]; then
 fi
 python $CODE/colab/hilti_run.py $R $S $W model
 rm -f $W/triangulation.txt
-for m in $W/sparse_*; do
+for m in $W/sparse_*ms; do
   mkdir -p $m/tri
   [ -f $m/tri/points3D.bin ] || colmap point_triangulator --database_path $W/db.db --image_path $W/images --input_path $m \
     --output_path $m/tri > $m/tri.log 2>&1
-  err=$(colmap model_analyzer --path $m/tri 2>&1 | grep -i "mean reprojection error" | grep -o "[0-9.]*px" | tr -d px)
-  pts=$(colmap model_analyzer --path $m/tri 2>&1 | grep -i "points:" | head -1 | grep -o "[0-9]*$")
-  echo "$(basename $m) ${err:-99} ${pts:-0}" | tee -a $W/triangulation.txt
+  obs=$(colmap model_analyzer --path $m/tri 2>&1 | grep -i "observations:" | head -1 | grep -o "[0-9]*$")
+  echo "$(basename $m) ${obs:-0}" | tee -a $W/triangulation.txt
 done
-# lowest reprojection error among the offsets that keep at least half the most points (bad poses shed points)
+# most triangulated observations: poses that are off shed matches (mean reprojection error flatters them, since
+# the worst observations are the ones dropped)
 best=$W/$(python -c "
-rows = [l.split() for l in open('$W/triangulation.txt')]
-most = max(int(r[2]) for r in rows)
-print(min((float(r[1]), r[0]) for r in rows if int(r[2]) >= most / 2)[1])")
+rows = sorted(((int(l.split()[0][7:-2]), int(l.split()[1]), l.split()[0]) for l in open('$W/triangulation.txt')))
+best = max(rows, key=lambda r: r[1])
+print(best[2]); assert best not in (rows[0], rows[-1]), 'best time offset is at the edge of the search grid'")
 echo "== poses: $(basename $best)"
+ln -sfn $best $W/sparse_best
 until ! pgrep -f "patch_match_stereo" > /dev/null; do sleep 60; done  # one PatchMatch at a time on the GPU
 colmap image_undistorter --image_path $W/images --input_path $best/tri --output_path $W/dense --output_type COLMAP
 colmap patch_match_stereo --workspace_path $W/dense --workspace_format COLMAP --PatchMatchStereo.geom_consistency true \

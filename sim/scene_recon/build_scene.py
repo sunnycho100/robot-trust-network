@@ -227,9 +227,10 @@ def spawn_point(floor_pts, obstacle_pts, cell=0.05):
 
 
 def ground_heightfield(mesh, cell=0.05, spacing=0.03):
-    """Cloth simulation filter on area-uniform samples; ground height per cell, holes filled, outliers smoothed."""
+    """Cloth simulation filter on area-uniform samples (or on given points, e.g. a laser scan); ground height per
+    cell, holes filled, outliers smoothed."""
     import CSF
-    pts = np.asarray(mesh.sample_points_uniformly(int(mesh.get_surface_area() / spacing ** 2)).points)
+    pts = mesh if isinstance(mesh, np.ndarray) else np.asarray(mesh.sample_points_uniformly(int(mesh.get_surface_area() / spacing ** 2)).points)
     csf = CSF.CSF()
     csf.params.bSloopSmooth, csf.params.cloth_resolution, csf.params.rigidness = True, 0.1, 2
     csf.params.class_threshold, csf.params.interations = 0.1, 500

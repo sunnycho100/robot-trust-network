@@ -15,6 +15,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mujoco_houses" / "src"))
 from unitree_demo.g1_policy import G1Controller, gait_phase, load_g1_config  # noqa: E402
+from export_scene import ground_model  # noqa: E402
 
 FALL_HEIGHT = 0.35  # pelvis less than this above the lower foot means the robot is down (works on slopes too)
 
@@ -89,11 +90,54 @@ def wall_runs(scene_xml, cfg, walls, seconds=6.0):
     return {"runs": 2 * len(walls), "touched": int(touched), "passed_through": int(passed)}
 
 
+def obstacle_runs(scene_xml, cfg, info, ground, runs=10, seconds=5.0):
+    """Outdoors there are no wall boxes: start 0.5 m from a tall object box (top 0.6 m or more above the ground),
+    beside a near waypoint, and walk straight at it. The pelvis must never end up inside a box."""
+    boxes = [b for b in info["object_boxes"]
+             if b["pos"][2] + b["half"][2] - ground(np.array(b["pos"][:2])) >= 0.6]
+    if not boxes:
+        return {"runs": 0, "touched": 0, "passed_through": 0}
+    lo = np.array([np.subtract(b["pos"], b["half"]) for b in boxes])
+    hi = np.array([np.add(b["pos"], b["half"]) for b in boxes])
+    rng, touched, passed, done = np.random.default_rng(1), 0, 0, 0
+    for w in rng.permutation(np.array(info["waypoints"]["near"]).reshape(-1, 2)):
+        if done == runs:
+            break
+        face = np.clip(w, lo[:, :2], hi[:, :2])  # nearest point of each box footprint
+        k = np.argmin(np.linalg.norm(face - w, axis=1))
+        away = w - face[k]
+        if not 0.05 < np.linalg.norm(away) < 0.6:
+            continue
+        start = face[k] + 0.5 * away / np.linalg.norm(away)
+        if not ground.seen(start):
+            continue
+        model = build(scene_xml, cfg, start, float(ground(start)))
+        data = mujoco.MjData(model)
+        g1 = G1Controller(model, cfg, "g1_")
+        g1.reset(data)
+        yaw = math.atan2(-away[1], -away[0])
+        data.qpos[g1.base_qpos + 3:g1.base_qpos + 7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+        objects = {i for i in range(model.ngeom) if (model.geom(i).name or "").startswith("obj_")}
+        hit = inside = False
+        for step in range(int(seconds / cfg.simulation_dt)):
+            g1.apply(data)
+            mujoco.mj_step(model, data)
+            if step % cfg.control_decimation == 0:
+                g1.update_policy(data, np.array([0.4, 0.0, 0.0], dtype=np.float32), gait_phase(data))
+                pelvis = data.xpos[g1.body_id]
+                inside |= bool(((pelvis >= lo) & (pelvis <= hi)).all(axis=1).any())
+            hit |= any(c.geom1 in objects or c.geom2 in objects for c in data.contact[:data.ncon])
+        touched += hit
+        passed += inside
+        done += 1
+    return {"runs": done, "touched": int(touched), "passed_through": int(passed)}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("scene", type=Path)
     p.add_argument("--episodes", type=int, default=20)
-    p.add_argument("--seconds", type=float, default=15.0)
+    p.add_argument("--seconds", type=float, default=30.0)  # 6 m at 0.4 m/s is 15 s before any turning
     p.add_argument("--video", type=Path, help="record the first 3 scene episodes to this mp4")
     a = p.parse_args()
     cfg = load_g1_config()
@@ -119,7 +163,7 @@ def main():
             camera.distance, camera.elevation, camera.azimuth = 3.0, -25.0, 135.0
             frames = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "640x480",
                                        "-r", "25", "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(a.video)], stdin=subprocess.PIPE)
-        outcomes = []
+        outcomes = results.setdefault("per goal", {})[name] = []
         for i, (yaw, goal) in enumerate(trials):
             record = frames is not None and i < 3
             outcomes.append(episode(model, cfg, yaw, goal, a.seconds, frames.stdin if record else None,
@@ -129,10 +173,20 @@ def main():
             frames.wait()
         results[name] = {k: outcomes.count(k) for k in ("reached", "fell", "timeout")}
         print(f"{name:10s}: {results[name]}", flush=True)
-    results["walk into walls"] = wall_runs(a.scene / "scene.xml", cfg, info["walls"])
-    print(f"walk into walls: {results['walk into walls']}", flush=True)
+    # the straight-line steering can't route around obstacles, so a goal reached on the plane and not in the scene
+    # is blocked, not a failure; a fall in the scene on a goal the plane walks cleanly points at the geometry
+    pairs = list(zip(*results["per goal"].values()))
+    results["blocked in scene"] = sum(s != "reached" and p == "reached" for s, p in pairs)
+    results["fell only in scene"] = sum(s == "fell" and p != "fell" for s, p in pairs)
+    print(f"goals blocked in the scene: {results['blocked in scene']}, falls only in the scene: {results['fell only in scene']}")
+    if not info.get("heightfield"):
+        key, runs = "walk into walls", wall_runs(a.scene / "scene.xml", cfg, info["walls"])
+    else:
+        key, runs = "walk into obstacles", obstacle_runs(a.scene / "scene.xml", cfg, info, ground_model(a.scene, info)[0])
+    results[key] = runs
+    print(f"{key}: {runs}", flush=True)
     (a.scene / "walk_results.json").write_text(json.dumps(results, indent=2))
-    walls_ok = results["walk into walls"]["passed_through"] == 0
+    walls_ok = runs["passed_through"] == 0 and (runs["runs"] > 0 or not info.get("object_boxes"))
     verdict = "PASS" if results["scene"]["fell"] <= results["bare plane"]["fell"] and walls_ok else "FAIL"
     print(f"{verdict}: falls in scene {results['scene']['fell']} vs bare plane {results['bare plane']['fell']} over {a.episodes} episodes")
 

@@ -44,7 +44,7 @@ All scores are against a laser scan (ETH3D evaluator), F1 at 2 / 5 cm. Meshes ar
 | Capture | Points | Mesh |
 |---|---|---|
 | Tripod DSLR, 44 photos, 3200 px | 0.78 / 0.88 | 0.74 / 0.87 (Delaunay) |
-| Handheld 4-camera rig video, 948 grayscale frames | 0.38 / 0.54 | 0.37 / 0.50 |
+| Handheld 4-camera rig video, 948 grayscale frames | 0.38 / 0.54 | 0.37 / 0.50 (Poisson) |
 
 **Meshers** on the DSLR points: Open3D Poisson 0.71 / 0.84, COLMAP Poisson (depth 12) 0.72 / 0.83, COLMAP Delaunay 0.74 / 0.87.
 
@@ -58,7 +58,18 @@ All scores are against a laser scan (ETH3D evaluator), F1 at 2 / 5 cm. Meshes ar
 
 Splats win on looks and lose on geometry, so collisions come from the MVS mesh and splats are only a visual layer.
 
-**Collision checks** (`check_collisions.py`), outdoor path on `delivery_area`: heightfield vs mesh ground 1.0 cm (95th percentile). Object boxes on a 10 cm grid: 9,568 boxes, surface IoU 0.46 and 0.45 at 0.5 m and 1.0 m above the ground (5 cm grid: 34,756 boxes, 0.48 and 0.47). G1 walk test 0 falls, same goals reached as on a bare plane.
+**Per-pixel depth** against ETH3D's laser depth maps (`colab/depth_check.py`): on the training photos, ours has 66% of laser pixels within 5 cm (median error 3.5 cm), and 49% (3.8 cm) on the held-out ones. vid2scene's rendered splat depth has 6% within 5 cm and a median error of 1.5 m even on the photos it was trained on, mostly placing surfaces behind the real ones.
+
+**Collision checks** (`check_collisions.py`), outdoor path on `delivery_area`: heightfield vs mesh ground 1.0 cm (95th percentile). Against the laser scan's own ground, where the camera saw the ground: median 0.26 cm, 95th percentile 2.7 cm. Ground the mesh filled in is not scored yet, since the laser reference still picks up the ceiling in about 10 m2.
+
+Object boxes on a 10 cm grid vs the mesh, both ways, within 5 / 10 cm:
+
+| Height above ground | Mesh covered by boxes | Box faces on the mesh | Surface IoU |
+|---|---|---|---|
+| 0.5 m | 0.74 / 0.95 | 0.51 / 0.75 | 0.48 |
+| 1.0 m | 0.63 / 0.88 | 0.52 / 0.76 | 0.47 |
+
+G1 walk test: 20 of 20 goals reached, 0 falls, same as on a bare plane. Walking straight at a tall object from 0.5 m, 10 runs: 7 touched it, 0 passed through.
 
 ## Choices so far
 

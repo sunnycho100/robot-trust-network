@@ -51,17 +51,20 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         frames = Path(tmp)
         o3d.io.write_triangle_mesh(str(frames / "mesh.ply"), site())
+        o3d.io.write_point_cloud(str(frames / "laser.ply"), site().sample_points_uniformly(400000))  # a perfect laser scan
         pose = np.eye(4)
         pose[:3, :3] = [[1, 0, 0], [0, 0, 1], [0, -1, 0]]  # camera looking along +y, its -y axis is world up
         pose[2, 3] = 1.5
         np.savetxt(frames / "poses.txt", pose.reshape(1, 16))
-        for cmd in (["build_scene.py", str(frames), "--outdoor", "--crop-height", "2.2"], ["check_collisions.py", str(frames / "mujoco")]):
+        for cmd in (["build_scene.py", str(frames), "--outdoor", "--crop-height", "2.2"], ["check_collisions.py", str(frames / "mujoco"), str(frames / "laser.ply")]):
             subprocess.run([sys.executable, str(HERE / cmd[0]), *cmd[1:]], check=True)
         info = json.loads((frames / "mujoco" / "scene_info.json").read_text())
         check = json.loads((frames / "mujoco" / "collision_check.json").read_text())
         assert len(info["object_boxes"]) >= 1, "no object boxes"
         assert check["ground"]["rms_cm"] < 3, check["ground"]
         assert check["iou"]["0.5"] > 0.3 and check["iou"]["1.0"] > 0.3, check["iou"]
+        assert all(v["mesh_within_10cm"] > 0.8 and v["proxy_within_10cm"] > 0.8 for v in check["surface"].values()), check["surface"]
+        assert check["ground_vs_laser"]["scanned ground"]["p95_cm"] < 3, check["ground_vs_laser"]
         assert check["ground"]["cells"] * 0.05 ** 2 > 90, check["ground"]  # the raised terrace past the curb is ground too
         model = mujoco.MjModel.from_xml_path(str(frames / "mujoco" / "scene.xml"))
         data = mujoco.MjData(model)
