@@ -6,6 +6,7 @@ Run from `sim/mujoco_houses/`. Signing and the trust policy come from `network/`
 | --- | --- |
 | one G1, WASD | `./scripts/run_basic` |
 | G1 leader, G1 or Go1 follower | `./scripts/run_duo` |
+| two full-body G1s carrying a box | `./scripts/run_coop_carry` |
 | two kitchens over MQTT | `./scripts/run_houses` |
 
 ## Environment
@@ -75,6 +76,55 @@ Focus the input window. `W/S` move, `A/D` turn, `Q/E` strafe, `Esc` quits.
 ```
 
 The follower moves only after a signed request is allowed. `--trust 10` denies it. A pose stream silent for 0.5 s stops the follower.
+
+## Cooperative lift
+
+### macOS setup and video recording
+
+Run these commands from the repository root. Python 3.11 or newer is recommended.
+The environment below lives inside this project; the older environment at
+`sim/coohoi_mujoco/.venv` is not required.
+
+```bash
+cd sim/mujoco_houses
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install 'mujoco>=3.3' numpy torch
+brew install ffmpeg
+./scripts/fetch_assets
+```
+
+`fetch_assets` downloads the Unitree G1 meshes and published walking policy
+(`third_party/unitree_rl_gym/deploy/pre_train/g1/motion.pt`). No locally trained
+checkpoint is required. It also downloads the Go1 assets used by the other demos.
+MQTT, RoboCasa and Isaac are not required for this cooperative demo.
+
+Record the eight-second side-A/side-B carry video (from `sim/mujoco_houses`):
+
+```bash
+PYTHONPATH=src .venv/bin/mjpython -m unitree_demo.coop_lift \
+  --headless --duration 8 \
+  --video outputs/g1_wrap_side_A_B.mp4
+```
+
+On macOS use `mjpython` for rendering, including headless video recording.
+`ffmpeg` must be on `PATH`. The output directory is created automatically.
+To open the interactive viewer, omit `--headless` and `--video`.
+If reusing `sim/coohoi_mujoco/.venv`, replace `.venv/bin/mjpython` above with
+`../coohoi_mujoco/.venv/bin/mjpython` after installing the same dependencies there.
+
+This demo keeps Unitree's published 12-joint walking policy for the legs and
+adds PD control for the waist and both five-joint arms. One G1 stands at each
+end of a long box; each robot reaches around its end so one palm contacts
+side A and the other contacts side B while they walk sideways together. `--assisted-grasp` enables the older compliant hand
+constraints for comparison; the default uses contact and friction only.
+
+```bash
+PYTHONPATH=src python -m unitree_demo.coop_lift
+PYTHONPATH=src python -m unitree_demo.coop_lift --headless --duration 8
+PYTHONPATH=src python -m unitree_demo.coop_lift --headless --video outputs/g1_cooperative_lift.mp4
+```
 
 ## Houses
 

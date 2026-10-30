@@ -37,6 +37,8 @@ sparse_submodule unitree_rl_gym \
   "/$g1/scene.xml" "/$g1/g1_12dof.xml"
 meshes=("${(@f)$(grep -o 'file="[^"]*"' "$root/unitree_rl_gym/$g1/g1_12dof.xml" | sed -e 's/file="//' -e 's/"$//' | sort -u)}")
 git -C "$root/unitree_rl_gym" sparse-checkout add "${meshes[@]/#//$g1/meshes/}"
+# The cooperative carry model also needs the upper-body meshes.
+git -C "$root/unitree_rl_gym" sparse-checkout add "/$g1/meshes/"
 
 sparse_submodule mujoco_menagerie /unitree_go1/
 

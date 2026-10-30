@@ -3,11 +3,19 @@
     python robot.py a     # robot A, house 1
     python robot.py b     # robot B, house 2
 
+Start a line with an action to make it a request the other robot can decide on:
+    mirror_motion follow me      -> asks to follow (the MuJoCo duo follower acts on it)
+    unlock_door let me in        -> always refused by the policy
+Any other line is sent as plain signed text.
+
 Every verdict is also published to verdicts/<house>/<robot> so the link monitor can show it.
 """
 import json, sys
 import paho.mqtt.client as mqtt
+from policy import MINIMUM_TRUST, NEVER_ALLOWED
 from protocol import BROKER_PORT, ROBOTS, Verifier, inbox, load_private_key, load_registry, make_message
+
+ACTIONS = set(MINIMUM_TRUST) | NEVER_ALLOWED
 
 me_short = sys.argv[1] if len(sys.argv) > 1 else ""
 if me_short not in ROBOTS:
@@ -24,6 +32,7 @@ verifier = Verifier(me, load_registry())
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe(inbox(me))
     print(f"{name} online, listening on {inbox(me)}. Type a message for {peer.split('@')[0]} and press Enter.")
+    print(f"  start a line with an action to request it: {', '.join(sorted(ACTIONS))}")
 
 
 def on_message(client, userdata, m):
@@ -47,9 +56,12 @@ client.loop_start()
 
 try:
     for line in sys.stdin:
-        if line.strip():
-            client.publish(inbox(peer), json.dumps(make_message(private_key, me, peer, line.strip()), ensure_ascii=False))
-            print(f"  sent (signed) to {peer.split('@')[0]}")
+        text = line.strip()
+        if text:
+            action = text.split()[0]
+            fields = {"action": action, "kind": "request"} if action in ACTIONS else {}
+            client.publish(inbox(peer), json.dumps(make_message(private_key, me, peer, text, **fields), ensure_ascii=False))
+            print(f"  sent (signed) to {peer.split('@')[0]}" + (f" ({action} request)" if fields else ""))
 except KeyboardInterrupt:
     pass
 client.disconnect()  # disconnect first, so loop_stop does not wait on a live connection

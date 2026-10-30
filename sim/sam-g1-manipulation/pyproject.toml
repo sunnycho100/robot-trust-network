@@ -1,0 +1,19 @@
+[project]
+name = "robot-trust-manipulation"
+version = "0.1.0"
+description = "Local G1 manipulation bring-up with physical joint control"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "bigym",
+  "mink>=1.2,<2",
+  "pyside6-essentials>=6.8,<7",
+  "ruckig==0.12.2",
+  "scipy>=1.12,<2",
+]
+
+[tool.uv.sources]
+bigym = { path = "../../../bigym2-lab", editable = true }
+
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.11"]
