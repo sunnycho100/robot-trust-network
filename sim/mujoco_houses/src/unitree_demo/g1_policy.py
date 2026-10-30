@@ -65,7 +65,12 @@ class G1Config:
 
     @property
     def robot_xml(self) -> Path:
-        """The 23-DoF G1; the locomotion policy still controls only its legs."""
+        """The 12-DoF G1 alone, for scenes that place it themselves."""
+        return self.xml_path.parent / "g1_12dof.xml"
+
+    @property
+    def robot_xml_23dof(self) -> Path:
+        """The 23-DoF G1 with waist and arms; the locomotion policy still controls only its legs."""
         return PROJECT_ROOT / "assets" / "g1_23dof.xml"
 
 

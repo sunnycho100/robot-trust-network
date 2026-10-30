@@ -72,8 +72,8 @@ def build_model(cfg: G1Config, assisted_grasp: bool = False) -> mujoco.MjModel:
     # one palm contacts side A (+Y), the other contacts side B (-Y).
     leader_frame = arena.worldbody.add_frame(name="leader_spawn", pos=(-0.857, 0, 0), quat=(1, 0, 0, 0))
     follower_frame = arena.worldbody.add_frame(name="follower_spawn", pos=(0.857, 0, 0), quat=(0, 0, 0, 1))
-    arena.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml)), prefix="leader_", frame=leader_frame)
-    arena.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml)), prefix="follower_", frame=follower_frame)
+    arena.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml_23dof)), prefix="leader_", frame=leader_frame)
+    arena.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml_23dof)), prefix="follower_", frame=follower_frame)
 
     if assisted_grasp:
         pairs = (

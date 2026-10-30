@@ -6,7 +6,7 @@ Run from `sim/mujoco_houses/`. Signing and the trust policy come from `network/`
 | --- | --- |
 | one G1, WASD | `./scripts/run_basic` |
 | G1 leader, G1 or Go1 follower | `./scripts/run_duo` |
-| two full-body G1s carrying a box | `python -m unitree_demo.coop_lift` |
+| two full-body G1s carrying a box | `./scripts/run_coop_carry` |
 | two kitchens over MQTT | `./scripts/run_houses` |
 
 ## Environment
