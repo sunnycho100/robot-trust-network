@@ -6,3 +6,4 @@ __pycache__/
 sim/menagerie/
 sim/last_view.png
 network/keys/
+sim/scene_recon/data/

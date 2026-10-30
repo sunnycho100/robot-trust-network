@@ -1,0 +1,9 @@
+# Local tools (bag extraction, RGB-D and LiDAR fusion, scene building). Heavy runs go to Colab (colab/setup.sh).
+open3d==0.19.0  # 0.20 returns empty TSDF volumes on macOS arm64
+numpy
+scipy
+opencv-python
+rosbags
+mujoco
+coacd
+scikit-learn
