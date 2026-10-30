@@ -16,11 +16,20 @@ import numpy as np
 
 
 UPSTREAM_ROOT = Path(__file__).resolve().parents[2] / "third_party" / "unitree_rl_gym"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LEG_JOINT_NAMES = (
     "left_hip_pitch_joint", "left_hip_roll_joint", "left_hip_yaw_joint",
     "left_knee_joint", "left_ankle_pitch_joint", "left_ankle_roll_joint",
     "right_hip_pitch_joint", "right_hip_roll_joint", "right_hip_yaw_joint",
     "right_knee_joint", "right_ankle_pitch_joint", "right_ankle_roll_joint",
+)
+
+UPPER_BODY_JOINT_NAMES = (
+    "waist_yaw_joint",
+    "left_shoulder_pitch_joint", "left_shoulder_roll_joint", "left_shoulder_yaw_joint",
+    "left_elbow_joint", "left_wrist_roll_joint",
+    "right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
+    "right_elbow_joint", "right_wrist_roll_joint",
 )
 
 
@@ -56,8 +65,8 @@ class G1Config:
 
     @property
     def robot_xml(self) -> Path:
-        """The 12-DoF G1 alone, for scenes that place it themselves."""
-        return self.xml_path.parent / "g1_12dof.xml"
+        """The 23-DoF G1; the locomotion policy still controls only its legs."""
+        return PROJECT_ROOT / "assets" / "g1_23dof.xml"
 
 
 def load_g1_config() -> G1Config:
@@ -142,6 +151,46 @@ class G1Controller:
         with self.torch.inference_mode():
             self.action = self.policy(self.torch.from_numpy(obs).unsqueeze(0)).numpy().squeeze()
         self.target_q = self.action * cfg.action_scale + cfg.default_angles
+
+
+class G1UpperBodyController:
+    """Joint-space PD controller for the 23-DoF G1 waist and arms.
+
+    The published walking policy still owns only the twelve leg joints.  This
+    controller holds a separate upper-body pose, so adding arms does not alter
+    the policy observation or action layout.
+    """
+
+    def __init__(self, model, prefix: str = "") -> None:
+        joint_ids = np.array([
+            mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, prefix + name)
+            for name in UPPER_BODY_JOINT_NAMES
+        ])
+        if np.any(joint_ids < 0):
+            raise ValueError("The G1 model does not contain all 23-DoF upper-body joints")
+        self.joint_qpos = model.jnt_qposadr[joint_ids].astype(int)
+        self.joint_dof = model.jnt_dofadr[joint_ids].astype(int)
+        self.actuators = np.array([
+            mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, prefix + name)
+            for name in UPPER_BODY_JOINT_NAMES
+        ])
+        self.kp = np.array([100.0] + [140.0] * 10, dtype=np.float32)
+        self.kd = np.array([5.0] + [6.0] * 10, dtype=np.float32)
+        self.target_q = np.zeros(11, dtype=np.float32)
+
+    def set_carry_pose(self, blend: float = 1.0) -> None:
+        """Move both hands forward into a symmetric box-carrying posture."""
+        carry = np.array([
+            0.0,
+            -1.20, 0.42, 0.0, 1.05, 0.0,
+            -1.20, -0.42, 0.0, 1.05, 0.0,
+        ], dtype=np.float32)
+        self.target_q[:] = (1.0 - blend) * self.target_q + blend * carry
+
+    def apply(self, data) -> None:
+        q = data.qpos[self.joint_qpos]
+        dq = data.qvel[self.joint_dof]
+        data.ctrl[self.actuators] = (self.target_q - q) * self.kp - dq * self.kd
 
 
 def gait_phase(data) -> float:
