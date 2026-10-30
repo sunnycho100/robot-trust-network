@@ -32,7 +32,7 @@ and two RoboCasa houses in separate windows. See [`mujoco_houses/README.md`](muj
 
 ## G1 manipulation
 
-The separate [`manipulation/`](manipulation/README.md) runtime adds an articulated
+The separate [`sam-g1-manipulation/`](sam-g1-manipulation/README.md) runtime adds an articulated
 G1 with two-finger grippers, GR00T balance, Mink arm IK, and Ruckig smoothing.
 It includes camera-guided generic manipulation, stance/posture planning, and a
 single native window for simulation, commands and traces. Physical task success

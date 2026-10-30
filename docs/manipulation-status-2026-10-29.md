@@ -4,7 +4,7 @@
 
 Publish the current work on **`sim/manipulation-review-2026-10-29`**, not `main`.
 The fetched `main` and `origin/main` both pointed to `9c55e56` at review time;
-there were no remote changes to reconcile. The entire `sim/manipulation/`
+there were no remote changes to reconcile. The entire `sim/sam-g1-manipulation/`
 subsystem was untracked, alongside an edited `sim/README.md`. This is a first
 publication of that subsystem, not an incremental change already on main.
 
@@ -132,7 +132,7 @@ This review does **not** claim to repair the physical failures.
 ## Debugging and token use
 
 The app exposes Activity and Full debug trace. Local evidence under
-`sim/manipulation/runs/agent/` includes `events.jsonl`; each `actions-*` directory
+`sim/sam-g1-manipulation/runs/agent/` includes `events.jsonl`; each `actions-*` directory
 records `implementation.json`, camera images, `decisions.jsonl`,
 `api-usage.jsonl` and action traces. Decisions contain the public explanation,
 chosen tool/arguments, latency, model version and usage metadata. These are
@@ -215,7 +215,7 @@ robot execution success.
 
 ### 4. Make the result reproducible and mergeable
 
-Validate `bash sim/manipulation/setup.sh` on a clean checkout; keep the pinned
+Validate `bash sim/sam-g1-manipulation/setup.sh` on a clean checkout; keep the pinned
 BiGym dependency and lockfile reproducible. Add calibration compatibility
 checks and CI unit/static checks plus selected physical trials where graphics
 are supported. Keep dependency clones, credentials, images, raw prompts,
@@ -228,7 +228,7 @@ the trust-network demonstration.
 
 ## Reproduce this audit
 
-From `sim/manipulation/` after setup:
+From `sim/sam-g1-manipulation/` after setup:
 
 ```bash
 MUJOCO_GL=cgl uv run --no-sync python -m pytest --capture=sys -q
@@ -238,5 +238,5 @@ MUJOCO_GL=cgl uv run --no-sync python skill_trials.py --seed 7
 
 From `network/`, install `requirements.txt` in an isolated Python environment,
 then run `python test_protocol.py` and `python test_policy.py`. The native lab
-launch is `uv run --no-sync python view.py agent` from `sim/manipulation/` with
+launch is `uv run --no-sync python view.py agent` from `sim/sam-g1-manipulation/` with
 a Google API key supplied through the environment.
