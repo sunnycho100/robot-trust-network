@@ -1,0 +1,133 @@
+{
+  "review_date": "2026-10-29",
+  "base_commit": "9c55e56",
+  "branch": "sim/manipulation-review-2026-10-29",
+  "platform": "macOS Apple Silicon, Python 3.12, MuJoCo CGL",
+  "bigym_commit": "d71501359b215b9d78e27dcb70b220412d474dfa",
+  "physical_trial": {
+    "command": "MUJOCO_GL=cgl uv run --no-sync python skill_trials.py --seed 7",
+    "scene": "sorting",
+    "seed": 7,
+    "passed": 1,
+    "total": 5,
+    "scope": "Oracle segmentation supplies 2D boxes; RGB-D skills run physical actions. No Gemini calls. Existing harness predicates are not full task-completion criteria.",
+    "results": [
+      {
+        "task": "blue_on_red",
+        "result": "FAIL",
+        "ok": false,
+        "xy_offset_m": 0.1179,
+        "bottom_above_ref_top_m": -0.05,
+        "sim_seconds": 45.5,
+        "wall_seconds": 14.6,
+        "fell": false
+      },
+      {
+        "task": "cylinder_on_orange",
+        "result": "FAIL",
+        "ok": false,
+        "stage": "pick",
+        "sim_seconds": 1.0,
+        "wall_seconds": 0.5,
+        "fell": false
+      },
+      {
+        "task": "cylinder_next_to_green",
+        "result": "FAIL",
+        "ok": false,
+        "stage": "pick",
+        "sim_seconds": 1.0,
+        "wall_seconds": 0.7,
+        "fell": false
+      },
+      {
+        "task": "drop",
+        "result": "PASS",
+        "ok": true,
+        "fell_m": 0.91,
+        "sim_seconds": 25.3,
+        "wall_seconds": 7.7,
+        "fell": false
+      },
+      {
+        "task": "red_back",
+        "result": "FAIL",
+        "ok": false,
+        "return_error_m": 0.369,
+        "sim_seconds": 67.3,
+        "wall_seconds": 30.2,
+        "fell": false
+      }
+    ],
+    "renderer_warning": "ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested; depth accuracy will be limited",
+    "source_sha256_before_reporting_fix": {
+      "planner.py": "a6843f525bdfb91a52fd5cf205c012c6c106030746cf2620dca6e91f8e5668e9",
+      "run.py": "169872192196a0790e8a6729bd9a2188fe3fc0219bd4fb6cf23071763678ac81",
+      "test_perception.py": "e3234440b69dfeeec4a97a6a1fb9b49dafa239c0a42bc1aaa7e37f174855af7a",
+      "desktop_window.py": "19403e8e486794eda17bc31cc9f3975ea42540d90204beaad5fc0da4ea44a2ee",
+      "controller.py": "02a46b66d575674790212da672db45785e66d2e70512a6356e26fc17b1e5c5da",
+      "body.py": "26fea7ca02a574fbba19b56b2f45bc24fc8a9faa1bc80a0ffcf6ddadd74f8204",
+      "skills.py": "24992f72bd87d89b7ecdbd5be19819b6068f938856aa58316bb5f5658a650a78",
+      "robot_kinematics.py": "a9a535525913569c2dd0dbb2d24ce9286fd29823818320338d2a822fef779ca9",
+      "test_planner.py": "634fb3de1679fc9f3cfe9fd869dddde3d97ea3478f58464185d31ca3402044be",
+      "scene_memory.py": "fec87c4b3f6864d0f4fe473a0e683bc0c5d516de3b6e73faf1670bbcc45ea085",
+      "desktop_launcher.py": "25346c33fc6db2e125ee377f059fd97b65f9633619ace453e7037a1562fa746e",
+      "agent_trials.py": "8e5e665eb6cc38c02e9f754ebe732444591c6575fb673de9873bfdf37a7630bc",
+      "test_sensor_renderer.py": "1a001e88d07db8096b9d1b238594e545b8589eec68544d2ab358bd8d197744a0",
+      "skill_trials.py": "9553b46f4e76962c51c9631cbc81047a3c9f107b3467c25b497ac75e00ddb148",
+      "agent_server.py": "409a2ac6129322363822d7af313a88f6906abc5fe0312f99248d35a9c6849405",
+      "trace_format.py": "03eb7edc842320ec79cea6975d01c1559510ab5f18ce87dd170a21f4360e8a94",
+      "build_posture_table.py": "cea4b4ab29e6d0a009cc1d66ae6732959a800d39e70dbfc3265241e9e7d85332",
+      "test_arm_limits.py": "618986d93b30f78e40274152e5c7fbc2bb3b965bb8875645c075f540a336cba0",
+      "native_agent.py": "52f61742631e30946382210a2fef1943e8903474eb8632524b447277a4386430",
+      "view.py": "9f7516d2f145f1742980f6f9d6e5868a57aa5f76ffedc2d1d55a352519fc0179",
+      "gait_envelope.json": "2b6e287087f2887bf02db877d9d763ace470cc5ec66a28e242384ad03729b3a0",
+      "build_gait_envelope.py": "62c7c8a46e3ba6c499f4755f40b28afd310d473896ff4bbadc96c8784d41d58d",
+      "agent.py": "9b8a381fcd1032f7ecde620644b176cc98079df72884d3fac481fee66dd260cb",
+      "test_skills.py": "d1520446397c77a21994a1c66d76f98798fc285eaaa31b37b1794660db6dc0a7",
+      "google_brain.py": "9a980a392cf0388ee6b825e4fd7c9271e3c18ff9f4e17b0a2e8fa10650f9cf33",
+      "lab_scene.py": "ff3f84ae4a78424b6590c4ac96408bdeee459ca1d6aec3f8f4b47120b4af4227",
+      "perception.py": "7ada13825dfe23002e9efd0d989e44864bb2de4e7e8cde47f46a2dc580af1bb3",
+      "arm_gravity.py": "15e396c101a5c410778b87ccce69162817289d10d7297ee202e8828a2e099b8a",
+      "sensor_renderer.py": "3dc7de86983da75ed232c547e95731354ec55f52bd80101f9df08320e9d8609b",
+      "posture_table.json": "2976405dfe75eea06035594673a6ce66bcb02df9b0e657f7618f91cf79306680",
+      "test_controller.py": "073b08e9b0684538c4c0bf9c397482a0232b6f221ec5f947d7815a3f1b9c3ee9"
+    }
+  },
+  "review_changes_sha256": {
+    "test_perception.py": {
+      "before": "e3234440b69dfeeec4a97a6a1fb9b49dafa239c0a42bc1aaa7e37f174855af7a",
+      "after": "8436f5a4d922d28b78bb2b7fe994d9871948cab1f9550fe64c95b4272d528c0e"
+    },
+    "skills.py": {
+      "before": "24992f72bd87d89b7ecdbd5be19819b6068f938856aa58316bb5f5658a650a78",
+      "after": "bb1fad8ffd52ec61f10aefd4482e69a871ad80a1b673e4a831b303a31273b2a1"
+    },
+    "test_skills.py": {
+      "before": "d1520446397c77a21994a1c66d76f98798fc285eaaa31b37b1794660db6dc0a7",
+      "after": "3bfbde81e72f556786d23aceb0dea47c6097bac766ce9c07a6bcd1a76dd57a14"
+    }
+  },
+  "checks": {
+    "pytest_before": {
+      "passed": 38
+    },
+    "pytest_after": {
+      "passed": 41
+    },
+    "ruff": "passed",
+    "network_protocol_script": "all passed",
+    "network_policy_script": "all passed"
+  },
+  "not_validated": [
+    "fresh English/Gemini end-to-end acceptance",
+    "clean-machine installation",
+    "live MQTT household integration",
+    "physical trial repeated after reporting-only fix"
+  ],
+  "notes": [
+    "No physical controller changes made in the review. skills.py result aggregation changed; tests/import formatting changed.",
+    "Raw local traces, camera images, credentials and archives are not part of this artifact.",
+    "Drop success is not controlled floor placement."
+  ]
+}
