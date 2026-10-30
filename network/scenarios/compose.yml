@@ -1,0 +1,43 @@
+# Three households and one broker. Each house has its own network; only the
+# broker sits on all of them, so a house can reach the broker and nothing else.
+name: trust-net
+
+x-house: &house
+  image: trust-net-house            # built once by run.py
+  pull_policy: never
+  user: "${HOST_UID:-0}:${HOST_GID:-0}"  # files in .run stay owned by whoever ran run.sh (Linux, WSL)
+  depends_on: [broker]
+  environment: { BROKER: broker }
+
+services:
+  broker:
+    image: eclipse-mosquitto:2
+    volumes: ["./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"]
+    networks: [house1, house2, house3, monitor]
+    ports: ["127.0.0.1:9101:9001"]   # websockets for map.html; this laptop only
+
+  house-1:
+    <<: *house
+    command: sleep infinity          # robots A and D; the runner drives them with client.py
+    cap_add: [NET_ADMIN]             # lets the runner add delay and loss with tc netem
+    volumes: ["./.run/house-1:/state"]
+    networks: [house1]
+
+  house-2:
+    <<: *house
+    command: python house.py robot-b@house-2
+    cap_add: [NET_ADMIN]
+    volumes: ["./.run/house-2:/state"]
+    networks: [house2]
+
+  house-3:
+    <<: *house
+    command: python house.py robot-c@house-3
+    volumes: ["./.run/house-3:/state"]
+    networks: [house3]
+
+networks:
+  house1: { internal: true }
+  house2: { internal: true }
+  house3: { internal: true }
+  monitor: {}                        # broker only: lets map.html on this laptop watch the broker

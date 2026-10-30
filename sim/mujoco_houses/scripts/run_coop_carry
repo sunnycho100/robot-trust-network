@@ -1,0 +1,8 @@
+#!/bin/zsh
+# Two 23-DoF G1s carry one box by squeezing it from both ends, held by friction only.
+#   ./scripts/run_coop_carry                     viewer
+#   ./scripts/run_coop_carry --headless          print the box and pelvis heights at the end
+#   ./scripts/run_coop_carry --assisted-grasp    hands attached to the box, for comparison
+set -eu
+source "${0:A:h}/_env.zsh"
+exec "$demo_python" -m unitree_demo.coop_lift "$@"

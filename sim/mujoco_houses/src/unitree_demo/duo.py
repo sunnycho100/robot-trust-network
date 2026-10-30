@@ -25,7 +25,7 @@ from .common import (HumanCommandInput, add_run_arguments, check_run_arguments,
                      ensure_macos_viewer_runtime, viewer_label)
 from .g1_policy import G1Config, G1Controller, gait_phase, load_g1_config
 from .go1_policy import Go1Controller, load_go1_spec, set_policy_gains
-from .trust_session import TrustMailbox, motion_from_grant
+from .trust_session import TrustMailbox, motion_from_grant, open_pose, sign_pose
 
 
 FOLLOWERS = ("g1", "go1")
@@ -48,23 +48,26 @@ class LeaderMessage:
     command: np.ndarray
 
     def to_payload(self) -> bytes:
-        return json.dumps(
-            {
-                "schema": "unitree.formation.v1",
-                "robot_id": "g1-leader",
-                "seq": self.sequence,
-                "sent_at_ns": self.sent_at_ns,
-                "pose": {"x": float(self.position_xy[0]), "y": float(self.position_xy[1]), "yaw": float(self.yaw)},
-                "command": {"vx": float(self.command[0]), "vy": float(self.command[1]), "yaw_rate": float(self.command[2])},
-            },
-            separators=(",", ":"),
-        ).encode("utf-8")
+        return json.dumps(self.to_state(), separators=(",", ":")).encode("utf-8")
+
+    def to_state(self) -> dict:
+        return {
+            "schema": "unitree.formation.v1",
+            "robot_id": "g1-leader",
+            "seq": self.sequence,
+            "sent_at_ns": self.sent_at_ns,
+            "pose": {"x": float(self.position_xy[0]), "y": float(self.position_xy[1]), "yaw": float(self.yaw)},
+            "command": {"vx": float(self.command[0]), "vy": float(self.command[1]), "yaw_rate": float(self.command[2])},
+        }
 
     @classmethod
     def from_payload(cls, payload: bytes) -> "LeaderMessage":
         if len(payload) > 4096:
             raise ValueError("MQTT formation payload is too large")
-        raw = json.loads(payload)
+        return cls.from_state(json.loads(payload))
+
+    @classmethod
+    def from_state(cls, raw: dict) -> "LeaderMessage":
         if not isinstance(raw, dict):
             raise ValueError("MQTT formation payload must be an object")
         if raw.get("schema") != "unitree.formation.v1" or raw.get("robot_id") != "g1-leader":
@@ -157,6 +160,7 @@ class MqttFormationLink:
         self._lock = threading.Lock()
         self._history = deque(maxlen=512)
         self._last_sequence = -1
+        self.pose_rejection: str | None = None
         self._leader_ready = threading.Event()
         self._follower_ready = threading.Event()
         self._follower_subscribed = threading.Event()
@@ -240,8 +244,14 @@ class MqttFormationLink:
         if mqtt_message.topic == self.trust.follower_inbox:
             self.trust.ingest_request(mqtt_message.payload, time.monotonic())
             return
+        state, reason = open_pose(self.trust.pose_verifier, mqtt_message.payload)
+        if state is None:
+            if reason != self.pose_rejection:
+                print(f"Ignored pose: {reason}", flush=True)
+            self.pose_rejection = reason
+            return
         try:
-            message = LeaderMessage.from_payload(mqtt_message.payload)
+            message = LeaderMessage.from_state(state)
         except (KeyError, TypeError, ValueError, OverflowError, RecursionError) as exc:
             print(f"Ignored invalid MQTT message: {type(exc).__name__}", flush=True)
             return
@@ -261,13 +271,18 @@ class MqttFormationLink:
             self._error = f"MQTT {what} failed with rc={result.rc}"
 
     def publish(self, message: LeaderMessage) -> None:
-        self._publish(self.leader, self.topic, message.to_payload(), "pose publish")
+        trust = self.trust
+        payload = sign_pose(trust.protocol, trust.leader_key, trust.robot_a, trust.robot_b, message.to_state())
+        self._publish(self.leader, self.topic, payload, "pose publish")
 
     def publish_request(self, action: str) -> None:
         self._publish(self.leader, *self.trust.request_payload(action), "signed request")
 
     def publish_attack(self) -> None:
         self._publish(self.attacker, *self.trust.attack_payload(), "attack publish")
+        # Also try to steer the follower with an unsigned pose 5 m off to the side.
+        fake = LeaderMessage(10**9, time.time_ns(), np.array([0.0, 5.0], dtype=np.float32), 0.0, np.zeros(3, dtype=np.float32))
+        self._publish(self.attacker, self.topic, fake.to_payload(), "attack publish")
 
     def publish_due_reply(self, now: float) -> None:
         due = self.trust.take_reply(now)
@@ -317,6 +332,17 @@ def follower_command(message, follower_position_xy, follower_yaw, follow_distanc
     return command
 
 
+# Head cameras, looking forward along the body's +x axis.
+HEAD_CAMERAS = {"g1": ("pelvis", (0.1, 0, 0.45)), "go1": ("trunk", (0.3, 0, 0.05))}
+CAMERA_SIZE = (180, 240)  # height, width of each picture-in-picture view
+
+
+def add_head_camera(spec: mujoco.MjSpec, robot: str) -> mujoco.MjSpec:
+    body, pos = HEAD_CAMERAS[robot]
+    spec.body(body).add_camera(name="head_cam", pos=pos, xyaxes=(0, -1, 0, 0, 0, 1), fovy=70)
+    return spec
+
+
 def build_duo_model(cfg: G1Config, follow_distance: float, follower: str) -> mujoco.MjModel:
     arena = mujoco.MjSpec.from_string("""
       <mujoco model="Unitree MQTT leader follower">
@@ -331,14 +357,14 @@ def build_duo_model(cfg: G1Config, follow_distance: float, follower: str) -> muj
           <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/></worldbody>
       </mujoco>
     """)
-    arena.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml)), prefix="leader_",
+    arena.attach(add_head_camera(mujoco.MjSpec.from_file(str(cfg.robot_xml)), "g1"), prefix="leader_",
                  frame=arena.worldbody.add_frame(name="leader_spawn"))
     # The follower starts facing across the leader's path, so its own walk and
     # the later turn into formation are easy to see.
     frame = arena.worldbody.add_frame(name="follower_spawn", pos=(-follow_distance, 0, 0),
                                       quat=(math.sqrt(0.5), 0, 0, -math.sqrt(0.5)))
     robot = mujoco.MjSpec.from_file(str(cfg.robot_xml)) if follower == "g1" else load_go1_spec()
-    arena.attach(robot, prefix="follower_", frame=frame)
+    arena.attach(add_head_camera(robot, follower), prefix="follower_", frame=frame)
     model = arena.compile()
     model.opt.timestep = cfg.simulation_dt
     for geom_id, body_id in enumerate(model.geom_bodyid):
@@ -379,6 +405,17 @@ def update_speech_labels(viewer, data, leader, follower, leader_text, follower_t
             geom.label = viewer_label(text)
 
 
+def show_head_cameras(viewer, renderer, data) -> None:
+    """Overlay each robot's head camera in the bottom corners of the viewer."""
+    height, width = CAMERA_SIZE
+    right = viewer.viewport.width - width if viewer.viewport else 0
+    images = []
+    for camera, left in (("leader_head_cam", 0), ("follower_head_cam", right)):
+        renderer.update_scene(data, camera=camera)
+        images.append((mujoco.MjrRect(left, 0, width, height), renderer.render()))
+    viewer.set_images(images)
+
+
 def run(args) -> None:
     cfg = load_g1_config()
     model = build_duo_model(cfg, args.follow_distance, args.follower)
@@ -391,8 +428,9 @@ def run(args) -> None:
     mqtt_link = MqttFormationLink(args)
     fixed_command = np.asarray(args.command, dtype=np.float32)
     human_input = None if args.headless else HumanCommandInput(f"G1 leader + {name} follower", duo=True)
-    viewer = None
+    viewer = renderer = None
     if not args.headless:
+        renderer = mujoco.Renderer(model, *CAMERA_SIZE)
         from mujoco import viewer as mj_viewer
         viewer = mj_viewer.launch_passive(model, data)
         viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
@@ -515,6 +553,8 @@ def run(args) -> None:
                 })
             if viewer:
                 update_speech_labels(viewer, data, leader, follower, leader_text, follower_text)
+                if counter % (cfg.control_decimation * 5) == 0:  # ponytail: 10 Hz camera, raise if the Mac keeps up
+                    show_head_cameras(viewer, renderer, data)
                 viewer.sync()
                 remaining = cfg.simulation_dt - (time.monotonic() - step_start)
                 if remaining > 0:
@@ -524,6 +564,8 @@ def run(args) -> None:
     finally:
         if viewer:
             viewer.close()
+        if renderer:
+            renderer.close()
         if human_input:
             human_input.close()
         mqtt_link.close()
