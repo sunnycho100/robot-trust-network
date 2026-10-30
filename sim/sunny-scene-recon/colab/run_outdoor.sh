@@ -5,7 +5,7 @@
 set -eu
 W=/content/work/delivery_area_3200_3
 F=$W/frames_outdoor
-CODE=/content/robosim/sim/scene_recon
+CODE=/content/robosim/sim/sunny-scene-recon
 export MUJOCO_GL=egl
 until grep -q AB_EXIT /content/mesh_ab.log; do sleep 60; done
 mkdir -p $F && cp $W/frames/poses.txt $F/

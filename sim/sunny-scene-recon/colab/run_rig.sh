@@ -9,7 +9,7 @@ MODE=${1:-tuned}
 W=/content/work/delivery_area_rig$([ $MODE = defaults ] && echo _defaults)
 PM="--PatchMatchStereo.window_radius 7 --PatchMatchStereo.num_iterations 7"; FU="--StereoFusion.min_num_pixels 3"
 [ $MODE = defaults ] && PM= && FU=
-CODE=/content/robosim/sim/scene_recon
+CODE=/content/robosim/sim/sunny-scene-recon
 EVAL=/content/multi-view-evaluation/build/ETH3DMultiViewEvaluation
 mkdir -p $W
 if [ ! -d $D/rig_calibration_undistorted ]; then

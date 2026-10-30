@@ -33,7 +33,7 @@ bash run_eth3d.sh delivery_area   # dense stereo, mesh, ETH3D score, MuJoCo scen
 bash compare_splat.sh             # vid2scene method vs ours on the same poses and views
 ```
 
-The code is expected at `/content/robosim` (this repo's `sim/scene_recon` and the G1 files from `sim/mujoco_houses`).
+The code is expected at `/content/robosim` (this repo's `sim/sunny-scene-recon` and the G1 files from `sim/mujoco_houses`).
 
 ## Results so far
 

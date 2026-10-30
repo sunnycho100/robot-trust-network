@@ -7,7 +7,7 @@ SCENE=$1
 CW=$2                               # e.g. /content/work/delivery_area_3200_3
 D=/content/eth3d/$SCENE
 W=/content/work/${SCENE}_openmvs
-CODE=/content/robosim/sim/scene_recon
+CODE=/content/robosim/sim/sunny-scene-recon
 EVAL=/content/multi-view-evaluation/build/ETH3DMultiViewEvaluation
 BIN=/usr/local/bin/OpenMVS
 mkdir -p $W && cd $W

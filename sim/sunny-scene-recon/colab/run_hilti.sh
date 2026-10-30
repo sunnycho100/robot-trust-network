@@ -5,7 +5,7 @@ set -eu
 R=/content/hilti
 S=${1:-exp04_construction_upper_level}
 W=/content/work/hilti_$S
-CODE=/content/robosim/sim/scene_recon
+CODE=/content/robosim/sim/sunny-scene-recon
 python $CODE/colab/hilti_run.py $R $S $W prepare
 if [ ! -f $W/db.db ]; then
   colmap feature_extractor --database_path $W/db.db --image_path $W/images --ImageReader.single_camera_per_image 1 \

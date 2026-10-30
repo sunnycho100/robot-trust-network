@@ -9,7 +9,7 @@ set -eu
 D=/content/eth3d/delivery_area
 V=/content/v2s/delivery_area
 W=/content/work/delivery_area_3200_3
-CODE=/content/robosim/sim/scene_recon
+CODE=/content/robosim/sim/sunny-scene-recon
 EVAL=/content/multi-view-evaluation/build/ETH3DMultiViewEvaluation
 export MUJOCO_GL=egl
 mkdir -p $V/images $V/sparse $V/sparse_txt $V/mvs

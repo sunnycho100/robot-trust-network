@@ -7,7 +7,7 @@ MAX_SIZE=${MAX_SIZE:-3200}  # critic round 2: higher resolution, wider window, m
 MIN_PIXELS=${MIN_PIXELS:-3} # and keep surfaces seen by 3 views (the default 5 drops floor and far walls)
 D=/content/eth3d/$SCENE
 W=/content/work/${SCENE}_${MAX_SIZE}_${MIN_PIXELS}
-CODE=/content/robosim/sim/scene_recon
+CODE=/content/robosim/sim/sunny-scene-recon
 EVAL=/content/multi-view-evaluation/build/ETH3DMultiViewEvaluation
 mkdir -p $W
 export MUJOCO_GL=egl

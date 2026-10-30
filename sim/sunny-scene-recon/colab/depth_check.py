@@ -2,7 +2,7 @@
 # views: vid2scene's rendered splat depth, its depth fused and meshed like ours, and our PatchMatch mesh, all on the
 # same poses. Run by depth_check.sh after compare_splat.sh; writes /content/depth_check.json and depth_check.jpg.
 import sys, glob, json
-sys.path[:0] = ["/content/robosim/sim/scene_recon/colab"]
+sys.path[:0] = ["/content/robosim/sim/sunny-scene-recon/colab"]
 from pathlib import Path
 import numpy as np, open3d as o3d
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
