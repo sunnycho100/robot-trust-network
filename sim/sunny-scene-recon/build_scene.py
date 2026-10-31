@@ -103,7 +103,7 @@ def write_textured_obj(mesh, out, texture_size):
     mesh.remove_degenerate_triangles()
     mesh.remove_duplicated_triangles()
     mesh.remove_duplicated_vertices()
-    for _ in range(5):  # removing a bad vertex can expose another, so repeat until clean
+    while True:  # removing a bad vertex can expose another, so repeat until clean (delivery_area takes 7 rounds)
         mesh.remove_non_manifold_edges()
         bad = np.asarray(mesh.get_non_manifold_vertices())
         if not len(bad):

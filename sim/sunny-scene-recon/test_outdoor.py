@@ -3,7 +3,7 @@ and a canopy floating 1.55 m above the ground (its underside must stay open).
 
     python test_outdoor.py   (needs CSF and coacd; runs build_scene.py and check_collisions.py in a temp dir)
 """
-import json, subprocess, sys, tempfile
+import itertools, json, subprocess, sys, tempfile
 from pathlib import Path
 import mujoco
 import numpy as np
@@ -51,7 +51,14 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         frames = Path(tmp)
         o3d.io.write_triangle_mesh(str(frames / "mesh.ply"), site())
-        o3d.io.write_point_cloud(str(frames / "laser.ply"), site().sample_points_uniformly(400000))  # a perfect laser scan
+        # a perfect laser scan, except under a roof 4.5 m up on pillars over half the site, where the scanner never saw
+        # the ground: only the roof and the pillars are there, and the roof is no ground
+        laser = np.asarray(site().sample_points_uniformly(400000).points)
+        roof = o3d.geometry.TriangleMesh.create_box(6, 10, 0.1).translate([-1, -5, 4.5])
+        for x, y in itertools.product((1.5, 4), (-3.5, -0.5, 2.5)):
+            roof += o3d.geometry.TriangleMesh.create_box(0.3, 0.3, 4.5).translate([x, y, 0])
+        laser = np.vstack([laser[laser[:, 0] < -1], roof.sample_points_uniformly(150000).points])
+        o3d.io.write_point_cloud(str(frames / "laser.ply"), o3d.geometry.PointCloud(o3d.utility.Vector3dVector(laser)))
         pose = np.eye(4)
         pose[:3, :3] = [[1, 0, 0], [0, 0, 1], [0, -1, 0]]  # camera looking along +y, its -y axis is world up
         pose[2, 3] = 1.5
@@ -64,7 +71,10 @@ def main():
         assert check["ground"]["rms_cm"] < 3, check["ground"]
         assert check["iou"]["0.5"] > 0.3 and check["iou"]["1.0"] > 0.3, check["iou"]
         assert all(v["mesh_within_10cm"] > 0.8 and v["proxy_within_10cm"] > 0.8 for v in check["surface"].values()), check["surface"]
-        assert check["ground_vs_laser"]["scanned ground"]["p95_cm"] < 3, check["ground_vs_laser"]
+        g = check["ground_vs_laser"]
+        assert g["scanned ground"]["p95_cm"] < 3, g
+        assert g["scanned ground"]["cells"] * 0.05 ** 2 > 30 and g["scanned ground without laser ground_m2"] > 50, g  # floor in view scored, roof not
+        assert max(g["scanned ground over 0.5 m off the laser floor_m2"].values()) < 1, g
         assert check["ground"]["cells"] * 0.05 ** 2 > 90, check["ground"]  # the raised terrace past the curb is ground too
         model = mujoco.MjModel.from_xml_path(str(frames / "mujoco" / "scene.xml"))
         data = mujoco.MjData(model)

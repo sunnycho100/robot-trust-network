@@ -20,7 +20,7 @@ images (+ depth, LiDAR or known poses)
 | `walk_in_scene.py` | G1 walking policy to reachable open and near-obstacle goals, the same goals on a bare plane, and walking into every wall |
 | `export_scene.py` | Isaac-ready export (URDF, meshes, terrain OBJ) and a CooHOI two-humanoid box-carry layout on free scanned ground |
 | `test_outdoor.py` | Self-check of the outdoor path on a synthetic site (slope, curb, crate, canopy) |
-| `colab/` | Remote GPU runs: `setup.sh`; `run_eth3d.sh` and `mesh_ab.sh` (ETH3D DSLR); `run_rig.sh` (ETH3D rig video); `compare_splat.sh` (vid2scene comparison); `run_outdoor.sh` (outdoor scene, export, preview); `run_hilti.sh` (Hilti 2022 construction site) |
+| `colab/` | Remote GPU runs: `setup.sh`; `run_eth3d.sh` and `mesh_ab.sh` (ETH3D DSLR); `run_rig.sh` (ETH3D rig video); `compare_splat.sh` (vid2scene comparison); `run_outdoor.sh` (outdoor scene, export, preview); `run_hilti.sh` (Hilti 2022 construction site); `pull_results.sh` (copies results to the Mac during a run) |
 
 ## Running on Colab
 
@@ -34,6 +34,8 @@ bash compare_splat.sh             # vid2scene method vs ours on the same poses a
 ```
 
 The code is expected at `/content/robosim` (this repo's `sim/sunny-scene-recon` and the G1 files from `sim/mujoco_houses`).
+
+The VM's disk is gone when the session ends, so keep `bash colab/pull_results.sh recon` running on the Mac during a run. Every 10 minutes it copies the run logs, scores and reports into `data/colab_results`.
 
 ## Results so far
 
@@ -60,16 +62,16 @@ Splats win on looks and lose on geometry, so collisions come from the MVS mesh a
 
 **Per-pixel depth** against ETH3D's laser depth maps (`colab/depth_check.py`): on the training photos, ours has 66% of laser pixels within 5 cm (median error 3.5 cm), and 49% (3.8 cm) on the held-out ones. vid2scene's rendered splat depth has 6% within 5 cm and a median error of 1.5 m even on the photos it was trained on, mostly placing surfaces behind the real ones.
 
-**Collision checks** (`check_collisions.py`), outdoor path on `delivery_area`: heightfield vs mesh ground 1.0 cm (95th percentile). Against the laser scan's own ground, where the camera saw the ground: median 0.26 cm, 95th percentile 2.7 cm. Ground the mesh filled in is not scored yet, since the laser reference still picks up the ceiling in about 10 m2.
+**Collision checks** (`check_collisions.py`), outdoor path on `delivery_area`: heightfield vs mesh ground 0.9 cm (95th percentile). Against the laser scan's own ground, where the camera saw the ground (278 m2): median 0.25 cm, 95th percentile 1.0 cm. Ground the mesh filled in (40 m2): median 0.4 cm, 95th percentile 64 cm, 5 m2 off by over 20 cm. Under the roof, where the laser has no ground either, our heightfield sits on the ceiling in about 100 m2, which these scores leave out.
 
 Object boxes on a 10 cm grid vs the mesh, both ways, within 5 / 10 cm:
 
 | Height above ground | Mesh covered by boxes | Box faces on the mesh | Surface IoU |
 |---|---|---|---|
-| 0.5 m | 0.74 / 0.95 | 0.51 / 0.75 | 0.48 |
-| 1.0 m | 0.63 / 0.88 | 0.52 / 0.76 | 0.47 |
+| 0.5 m | 0.75 / 0.95 | 0.55 / 0.77 | 0.50 |
+| 1.0 m | 0.67 / 0.88 | 0.54 / 0.77 | 0.48 |
 
-G1 walk test: 20 of 20 goals reached, 0 falls, same as on a bare plane. Walking straight at a tall object from 0.5 m, 10 runs: 7 touched it, 0 passed through.
+G1 walk test: 20 of 20 goals reached, 0 falls, same as on a bare plane. Walking straight at a tall object from 0.5 m, 10 runs: 9 touched it, 0 passed through.
 
 ## Choices so far
 

@@ -10,7 +10,7 @@ apt-get install -y -qq git cmake ninja-build build-essential p7zip-full \
   libeigen3-dev libfreeimage-dev libopenimageio-dev openimageio-tools libmetis-dev libgoogle-glog-dev \
   libgtest-dev libgmock-dev libsqlite3-dev libglew-dev libcgal-dev libceres-dev libsuitesparse-dev \
   libcurl4-openssl-dev libssl-dev libflann-dev libopencv-dev libpcl-dev ffmpeg > /content/apt.log 2>&1
-pip install -q open3d mujoco coacd scikit-learn plyfile > /content/pip.log 2>&1
+pip install -q open3d mujoco coacd scikit-learn plyfile cloth-simulation-filter > /content/pip.log 2>&1
 
 mkdir -p /content/eth3d
 for SCENE in "$@"; do
