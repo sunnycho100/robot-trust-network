@@ -48,7 +48,7 @@ class Factory:
         self.buffers[task.source].take(task.job_id,task.id)
         task.picked=True; task.status='PICKED'
         self.jobs[task.job_id].location='ON:'+','.join(task.resources)
-        self.bus.emit(self.time,'MEASURED_PICKUP',task=task.id,job=task.job_id)
+        self.bus.emit(self.time,'MEASURED_PICKUP',task=task.id,job=task.job_id,resources=task.resources)
 
     def acknowledge_delivery(self,task_id):
         task=self.tasks[task_id]
@@ -84,7 +84,7 @@ class Factory:
         if task.destination=='FINISHED' and len(self.buffers['FINISHED'].items)==self.config['pallet_capacity']:
             self.pallets+=1; self.bus.emit(self.time,'PALLET_COMPLETE',pallet=self.pallets)
         job.history.append(dict(t=self.time,source=task.source,destination=task.destination,task=task.id))
-        self.bus.emit(self.time,'MEASURED_DELIVERY',task=task.id,job=job.id,destination=task.destination)
+        self.bus.emit(self.time,'MEASURED_DELIVERY',task=task.id,job=job.id,destination=task.destination,resources=task.resources)
         self.dispatcher.release(task,self.resources,self.time,self.bus)
 
     def acknowledge_component(self,task_id):

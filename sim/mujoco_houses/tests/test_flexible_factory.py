@@ -1,11 +1,15 @@
 """Factory custody/dispatch regression tests. ManualBackend is NOT a physics sim."""
-import zlib
+import base64,zlib
 import pytest
+from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from unitree_demo.trust_session import load_trust
 from unitree_demo.flexible_factory.config import load_config
 from unitree_demo.flexible_factory.buffer import Buffer
 from unitree_demo.flexible_factory.job import Job,Priority
 from unitree_demo.flexible_factory.resource_selector import Resource
 from unitree_demo.flexible_factory.engine import Factory
+from unitree_demo.flexible_factory.custody_signer import CustodySigner
 
 class ManualBackend:
     def __init__(self): self.signals=[]; self.started={}
@@ -128,3 +132,21 @@ def test_three_product_types_can_be_in_different_stations_concurrently():
     running=[t for t in f.tasks.values() if t.status=='ASSIGNED']
     assert {t.metadata['station'] for t in running}=={'CNC','ASSEMBLY','QC'}
     assert len({name for t in running for name in t.resources})==3
+
+def test_custody_events_are_signed_by_each_robot_and_tampering_fails():
+    protocol,_=load_trust()
+    keys={n:Ed25519PrivateKey.generate() for n in ('A','B')}
+    registry={n:{'public_key':base64.b64encode(k.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode(),'status':'active'} for n,k in keys.items()}
+    signer=CustodySigner(keys); verifier=protocol.Verifier(signer.receiver,registry)
+    resources=[Resource(n,frozenset(['team_transport']),max_payload_kg=1,profiles=frozenset(['three_frame'])) for n in keys]
+    f,b=factory(resources); f.bus.subscribers.append(signer)
+    f.add_job(Job('MODULE','D',(),'ASSEMBLY_LARGE_OUTPUT',mass_kg=1.5,required_grasp_points=2))
+    f.tick(0); task=next(iter(f.tasks.values()))
+    b.signals=[(task.id,'PICKED')]; f.tick(1)
+    b.signals=[(task.id,'DELIVERED')]; f.tick(2)
+    events=('TEAM_FORMED','MEASURED_PICKUP','MEASURED_DELIVERY','TEAM_DISSOLVED')
+    assert sorted((r['request'],r['from']) for r in signer.records)==sorted((e,n) for e in events for n in keys)
+    assert all(verifier.check(r)==(True,'ok') for r in signer.records)
+    delivery=next(r for r in signer.records if r['request']=='MEASURED_DELIVERY')
+    assert delivery['job']=='MODULE' and delivery['destination']=='FINAL_STAGING'
+    assert verifier.check({**delivery,'destination':'SHIPPING'})==(False,'bad signature')
