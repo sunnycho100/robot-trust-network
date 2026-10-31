@@ -103,10 +103,23 @@ def build_model(cfg: G1Config, assisted_grasp: bool = False) -> mujoco.MjModel:
     return model
 
 
+class _NoProgress:
+    """Stands in for tqdm when it is not installed: every call does nothing."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
+    def __getattr__(self, name):
+        return lambda *args, **kwargs: None
+
+
 class RawVideoWriter:
     def __init__(self, path: Path, width: int, height: int, fps: int,
                  total_frames: int | None = None) -> None:
-        from tqdm import tqdm
+        try:
+            from tqdm import tqdm
+        except ImportError:
+            tqdm = _NoProgress
 
         self.fps = fps
         self.frames = 0
