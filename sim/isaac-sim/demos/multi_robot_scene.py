@@ -31,6 +31,7 @@ parser.add_argument("--robot", nargs=7, action="append", metavar=("KIND", "X", "
 parser.add_argument("--goal", nargs=2, type=float, action="append", metavar=("X", "Y"))
 parser.add_argument("--stop", nargs=4, type=float, action="append", metavar=("ROBOT", "X", "Y", "DWELL"))
 parser.add_argument("--plan", action="store_true", help="with --goal: A* paths around the scene's obstacles")
+parser.add_argument("--eye", nargs=3, type=float, metavar=("X", "Y", "Z"), help="camera position; default southwest of the robots")
 parser.add_argument("--device", type=str, choices=["cpu", "cuda"], default="cuda")
 parser.add_argument("--stream", action="store_true", help="stream over WebRTC to the web viewer (inside the container)")
 args, sys.argv[1:] = parser.parse_known_args()
@@ -104,7 +105,7 @@ xs, ys = [c[1] for c in robots_cfg] + [g[0] for g in marks], [c[2] for c in robo
 cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
 span = max(max(xs) - min(xs), max(ys) - min(ys), 4.0)
 # eye at 0.5 span stays below the warehouse lights, which hid robots at 0.9
-ViewportManager.set_camera_view(ViewportManager.get_camera(), eye=[cx - 1.2 * span, cy - 1.2 * span, 0.5 * span],
+ViewportManager.set_camera_view(ViewportManager.get_camera(), eye=args.eye or [cx - 1.2 * span, cy - 1.2 * span, 0.5 * span],
                                 target=[cx, cy, 0.3])
 
 tick, first_step, reset_needed, policy_failed = 0, True, False, False

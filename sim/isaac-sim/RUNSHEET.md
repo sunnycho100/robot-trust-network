@@ -25,6 +25,18 @@ Upload this folder to `~/robot/isaac-sim/` first (Jupyter file browser), then:
    /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py \
      --robot h1 -4 0 0 0 0 0 --robot go2 0 -4 90 0 0 0 --robot anymal 4 -3 135 0 0 0 \
      --stop 0 0 0 3 --stop 0 3 3 0 --stop 1 0 0 2 --stop 1 -3 3 0 --stop 2 0 0 2 --stop 2 -3 -3 0   # one station, in turn
+   # the layout above has a clear corridor; this one makes A* route round the shelves (H1 and Go2 leave one aisle
+   # and enter the next, 12 m instead of 4.9 m through a shelf), camera south of the aisles
+   /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --plan \
+     --robot h1 -17.9 13 -90 0 0 0 --robot go2 -8 13 -90 0 0 0 --robot anymal -3 5 180 0 0 0 \
+     --goal -22.8 13 --goal -12.9 13 --goal -20.4 5 --eye -12.9 -5 13
+   ```
+   Language model on top (`demos/task_plan.py`, Claude writes the station routes, fleet.Jobs runs them; needs
+   `pip install anthropic` and Sunghwan's key or `ant auth login`, costs a few cents; live call not tested yet):
+   ```bash
+   S=$(python3 /robot/isaac-sim/demos/task_plan.py "The H1 and the Go2 each fetch a load from the dock; the H1 takes it to shelf A, the Go2 to shelf B" \
+     --robot h1 -4 0 0 --robot go2 0 -4 90 --robot anymal 4 -3 135 --station dock 0 0 3 --station shelfA 0 3 0 --station shelfB -3 3 0)
+   /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py $S --stream
    ```
    `grep "\[fleet\]"` in the output gives arrivals, closest approach and base heights (a fall shows as base z dropping).
 
@@ -35,12 +47,20 @@ Upload this folder to `~/robot/isaac-sim/` first (Jupyter file browser), then:
    Then copy `~/robot/walk/full_warehouse` to wherever 3DGRUT runs; `sparse/0` is a COLMAP text model with exact poses.
    Already done once on Colab (`overnight/colab/walk_queue.sh`); its outputs are in `docs/evidence/overnight/grut/` if the run finished.
 
-4. Robots in OUR reconstruction, with its own collider and no ground plane. Copy `walk_world.usda` and
-   `walk_nurec_collider.usdz` into one folder (the wrapper references the usdz by relative path and undoes the
-   exporter's normalizing transform, so the stage is in the warehouse frame, metres, Z up). Starts and goals are in
-   `grep ARGS walk_h1.log`:
+4. Robots in OUR reconstruction, with its own collider and no ground plane. Use the PatchMatch TSDF collider:
+   copy `walk_pm_world.usda` and `walk_pm_collider.usdz` into one folder (the splat-depth colliders,
+   `walk_world.usda` and `walk_tsdf_world.usda`, have a floor 15 to 20 cm off). The wrapper references the usdz by
+   relative path and undoes the exporter's normalizing transform, so the stage is in the warehouse frame (metres,
+   Z up). Starts and goals are in `grep ARGS walk_pm.log` (unverified until tonight's walk_pm run ends):
    ```bash
-   /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --scene /robot/recon/walk_world.usda --plan $ARGS --stream
+   /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --scene /robot/recon/walk_pm_world.usda --plan $ARGS --stream
+   ```
+   Same for the REAL ETH3D delivery_area (3DGUT looks, PatchMatch collider): copy `da_world.usda` and
+   `da_full_hybrid.usdz` together; `sim/sunny-scene-recon/colab/level_scene.py` levelled the floor to z = 0 and
+   picked the start, goal and camera (`grep ARGS da_h1.log`). For a new capture, run level_scene.py on its collider
+   mesh, its `images.txt` and its usdz first (3dgrut venv).
+   ```bash
+   /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --scene /robot/recon/da_world.usda --plan $ARGS --stream
    ```
 
 5. VLA over a trained RL controller: GR00T N1.6 drives a G1 whole-body controller in Isaac Lab-Arena (`main` targets
@@ -71,3 +91,14 @@ Upload this folder to `~/robot/isaac-sim/` first (Jupyter file browser), then:
    Expect `Metrics: {success_rate: 1.0, num_episodes: 1}`. Headless is inferred (the docs add `--viz kit` for the GUI);
    the two video flags exist in `policy_runner_cli.py` but are untested on this task. Parallel: add
    `--num_envs 5 --device cuda --policy_device cuda` and `--num_steps 1200`.
+
+6. Multi-agent training scaffold for the CooHOI port (`docs/research/coohoi_port_plan.md`): Isaac Lab 3.0 skrl MAPPO,
+   two agents, kit-less Newton physics (no Isaac Sim needed). Ran on a Colab L4 tonight (`overnight/colab/lab_mappo.sh`):
+   7 min kernel compile, then about 22k env steps per second; success rate 0.007 to 0.47 (levelling off) and mean reward 1.4 to 41 in the
+   first 7200 of 36000 steps (21 min of training; 40 min time box). The full run is about 110 min on an L4. On the host:
+   ```bash
+   git clone --depth 1 --branch v3.0.0 https://github.com/isaac-sim/IsaacLab ~/IsaacLab && cd ~/IsaacLab
+   UV_SYSTEM_PYTHON=false GIT_LFS_SKIP_SMUDGE=1 uv sync --extra skrl
+   uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Shadow-Handover-Direct --algorithm MAPPO \
+     --num_envs 4096 physics=newton_mjwarp
+   ```
