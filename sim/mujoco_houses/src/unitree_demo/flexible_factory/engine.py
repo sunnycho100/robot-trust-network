@@ -79,6 +79,8 @@ class Factory:
                 job.stage+=1
             station.set_state('IDLE',self.time,self.bus)
         if task.destination=='SHIPPING':
+            # Shipping is a sink: the part leaves on the truck and frees its slot.
+            self.buffers['SHIPPING'].items.remove(job.id); job.location='SHIPPED'
             self.shipped.append(job.id)
             self.bus.emit(self.time,'SHIPPED',job=job.id)
         if task.destination=='FINISHED' and len(self.buffers['FINISHED'].items)==self.config['pallet_capacity']:
@@ -126,8 +128,10 @@ class Factory:
             if source=='REWORK': target='REWORK'
             if target=='SHIPPING' and source=='FINISHED':
                 # Shipping is a pallet-completion task, not one arbitrary part at a time.
-                if len(self.buffers['FINISHED'].items)>=self.config['pallet_capacity']:
-                    for item in list(self.buffers['FINISHED'].items):
+                finished,size=self.buffers['FINISHED'],self.config['pallet_capacity']
+                pallet=[j for j in finished.items if j not in finished.outbound][:size]
+                if len(pallet)==size and self.buffers['SHIPPING'].free>=size:
+                    for item in pallet:
                         self.submit('FINISHED_GOODS',item,'FINISHED','SHIPPING',Priority.FINISHED,'finished_goods')
                 continue
             if target not in self.stations: continue
@@ -198,7 +202,7 @@ class Factory:
     def metrics(self):
         active=sum(r.state!='AVAILABLE' for r in self.resources.values())
         return dict(time_s=self.time,throughput_parts_hr=len(self.shipped)*3600/max(1.,self.time),
-            shipped=len(self.shipped),wip=sum(j.product!='COMPONENT_B' and j.location not in ('RECEIVING','SHIPPING') for j in self.jobs.values()),
+            shipped=len(self.shipped),wip=sum(j.product!='COMPONENT_B' and j.location not in ('RECEIVING','SHIPPED') for j in self.jobs.values()),
             robots_active=active,robots_total=len(self.resources),qc_rejects=self.rejects,
             qc_queue=len(self.buffers['QC_INPUT'].items),pallet=len(self.buffers['FINISHED'].items),
             pallet_capacity=self.config['pallet_capacity'],stations={n:s.state for n,s in self.stations.items()},

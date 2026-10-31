@@ -150,3 +150,31 @@ def test_custody_events_are_signed_by_each_robot_and_tampering_fails():
     delivery=next(r for r in signer.records if r['request']=='MEASURED_DELIVERY')
     assert delivery['job']=='MODULE' and delivery['destination']=='FINAL_STAGING'
     assert verifier.check({**delivery,'destination':'SHIPPING'})==(False,'bad signature')
+
+def ship_assigned(f,b):
+    b.signals=[(t.id,s) for t in f.tasks.values() if t.status=='ASSIGNED' for s in ('PICKED','DELIVERED')]
+    f.tick(f.time+1)
+
+def shipping_line():
+    return factory([Resource('FG',frozenset(['finished_goods']),max_payload_kg=.1)])
+
+def test_shipping_drains_so_packaging_does_not_stall_after_two_pallets():
+    f,b=shipping_line(); n=f.config['pallet_capacity']
+    for p in range(3):
+        for i in range(n): f.add_job(Job(f'P{p}-{i:02d}','B',('SHIPPING',),'FINISHED'))
+        for _ in range(n+1): ship_assigned(f,b)
+    assert len(f.shipped)==3*n and not f.buffers['SHIPPING'].items
+    assert f.stations['PACKAGING'].state!='BLOCKED'
+
+def test_a_pallet_ships_whole_or_waits():
+    f,b=shipping_line(); n=f.config['pallet_capacity']
+    for i in range(f.buffers['SHIPPING'].capacity-n+1): f.add_job(Job(f'OLD{i}','B',(),'SHIPPING'))
+    for i in range(n): f.add_job(Job(f'P{i:02d}','B',('SHIPPING',),'FINISHED'))
+    f.tick(0)
+    assert not any(t.kind=='FINISHED_GOODS' for t in f.tasks.values())
+    # A part packed while a pallet is leaving waits for its own pallet.
+    f,b=shipping_line()
+    for i in range(n): f.add_job(Job(f'P{i:02d}','B',('SHIPPING',),'FINISHED'))
+    f.tick(0); ship_assigned(f,b)
+    f.add_job(Job('LATE','B',('SHIPPING',),'FINISHED')); f.tick(f.time+1)
+    assert not any(t.job_id=='LATE' for t in f.tasks.values())
