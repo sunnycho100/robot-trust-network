@@ -34,7 +34,8 @@ def drop_small(mesh, n):
 def main():
     cap, out = sys.argv[1], sys.argv[2]
     voxel = float(sys.argv[3]) if len(sys.argv) > 3 else 0.02
-    w, h, fx, fy, cx, cy = map(float, open(f"{cap}/sparse/0/cameras.txt").read().split()[2:8])
+    cam = [l for l in open(f"{cap}/sparse/0/cameras.txt") if not l.startswith("#")][0].split()
+    w, h, fx, fy, cx, cy = map(float, cam[2:8])
     intr = o3d.camera.PinholeCameraIntrinsic(int(w), int(h), fx, fy, cx, cy)
     test = set(open(f"{cap}/test.txt").read().split())
 
