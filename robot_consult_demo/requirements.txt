@@ -1,0 +1,15 @@
+ikpy==4.3.0
+jsonschema==4.26.0
+matplotlib==3.11.2
+mujoco==3.17.0
+numpy==2.5.4
+opencv-contrib-python-headless==5.0.0.93
+openpyxl==3.1.5
+ortools==9.15.6755
+pandas==3.1.0
+pyyaml==6.0.3
+robot-descriptions==3.3.0
+scipy==1.18.1
+simpy==4.1.2
+mediapipe==1.2.0
+scikit-learn==1.9.1

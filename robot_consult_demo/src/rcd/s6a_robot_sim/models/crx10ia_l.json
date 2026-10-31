@@ -1,0 +1,146 @@
+{
+ "source": "https://github.com/FANUC-CORPORATION/fanuc_description (main) fanuc_crx_description/urdf/crx10ia_l_urdf_macro.xacro (same values in ros-industrial/fanuc noetic-devel fanuc_crx10ia_support/urdf/crx10ial_macro.xacro)",
+ "license": "Apache-2.0",
+ "joints": [
+  {
+   "name": "J1",
+   "xyz": [
+    0,
+    0,
+    0.245
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -179.9,
+   "upper_deg": 179.9,
+   "velocity_deg_s": 120
+  },
+  {
+   "name": "J2",
+   "xyz": [
+    0.0,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "lower_deg": -179.9,
+   "upper_deg": 179.9,
+   "velocity_deg_s": 120
+  },
+  {
+   "name": "J3",
+   "xyz": [
+    0,
+    0,
+    0.71
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    -1,
+    0
+   ],
+   "lower_deg": -270,
+   "upper_deg": 270,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "J4",
+   "xyz": [
+    0,
+    0,
+    0.0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    -1,
+    0,
+    0
+   ],
+   "lower_deg": -190,
+   "upper_deg": 190,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "J5",
+   "xyz": [
+    0.54,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    -1,
+    0
+   ],
+   "lower_deg": -179.9,
+   "upper_deg": 179.9,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "J6",
+   "xyz": [
+    0,
+    -0.15,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    -1,
+    0,
+    0
+   ],
+   "lower_deg": -225,
+   "upper_deg": 225,
+   "velocity_deg_s": 180
+  }
+ ],
+ "flange_xyz": [
+  0.16,
+  0,
+  0
+ ],
+ "tool_axis": [
+  1,
+  0,
+  0
+ ],
+ "datasheet_reach_mm": 1418,
+ "model": "CRX-10iA/L",
+ "convention": "URDF: joint origin xyz/rpy (fixed-axis roll-pitch-yaw) relative to parent link; axis in child frame",
+ "note": "Kinematics only (joint origins, axes, position and velocity limits) transcribed from the public vendor ROS description; meshes replaced by capsule collision primitives in models/build.py"
+}

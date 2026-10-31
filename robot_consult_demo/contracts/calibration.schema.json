@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "calibration",
+  "type": "object",
+  "required": [
+    "world_frame",
+    "cameras"
+  ],
+  "properties": {
+    "world_frame": {
+      "type": "object",
+      "required": [
+        "units",
+        "up_axis",
+        "origin_desc"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "cameras": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "station",
+          "side",
+          "image_size",
+          "K",
+          "dist",
+          "R",
+          "t",
+          "source",
+          "reproj_rmse_px"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "station": {
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "in",
+              "out"
+            ]
+          },
+          "image_size": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 2
+          },
+          "K": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3
+            },
+            "minItems": 3
+          },
+          "dist": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 0
+          },
+          "R": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3
+            },
+            "minItems": 3
+          },
+          "t": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3
+          },
+          "source": {
+            "type": "string"
+          },
+          "reproj_rmse_px": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

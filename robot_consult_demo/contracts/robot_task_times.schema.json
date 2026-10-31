@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "robot_task_times",
+  "type": "object",
+  "required": [
+    "method",
+    "entries"
+  ],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "model",
+          "group_id",
+          "station",
+          "cycle_time_s",
+          "breakdown",
+          "ik_success_rate",
+          "sim"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

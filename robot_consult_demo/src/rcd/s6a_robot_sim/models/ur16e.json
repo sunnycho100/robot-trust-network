@@ -1,0 +1,142 @@
+{
+ "source": "https://github.com/UniversalRobots/Universal_Robots_ROS2_Description (rolling) config/ur16e/default_kinematics.yaml + joint_limits.yaml",
+ "license": "BSD-3-Clause (kinematics yaml; meshes not used)",
+ "convention": "URDF: joint origin xyz/rpy (fixed-axis roll-pitch-yaw) relative to parent link; axis in child frame",
+ "joints": [
+  {
+   "name": "shoulder_pan",
+   "xyz": [
+    0,
+    0,
+    0.1807
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 120
+  },
+  {
+   "name": "shoulder_lift",
+   "xyz": [
+    0,
+    0,
+    0
+   ],
+   "rpy": [
+    1.570796327,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 120
+  },
+  {
+   "name": "elbow",
+   "xyz": [
+    -0.4784,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -180,
+   "upper_deg": 180,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "wrist_1",
+   "xyz": [
+    -0.36,
+    0,
+    0.17415
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "wrist_2",
+   "xyz": [
+    0,
+    -0.11985,
+    0
+   ],
+   "rpy": [
+    1.570796327,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "wrist_3",
+   "xyz": [
+    0,
+    0.11655,
+    0
+   ],
+   "rpy": [
+    1.570796326589793,
+    3.141592653589793,
+    3.141592653589793
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 180
+  }
+ ],
+ "flange_xyz": [
+  0,
+  0,
+  0
+ ],
+ "tool_axis": "auto",
+ "datasheet_reach_mm": 900,
+ "model": "UR16e",
+ "note": "Kinematics only (joint origins, axes, position and velocity limits) transcribed from the public vendor ROS description; meshes replaced by capsule collision primitives in models/build.py"
+}

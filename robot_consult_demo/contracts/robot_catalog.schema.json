@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "robot_catalog",
+  "type": "object",
+  "required": [
+    "robots"
+  ],
+  "properties": {
+    "robots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "model",
+          "maker",
+          "type",
+          "payload_kg",
+          "reach_mm",
+          "repeatability_mm",
+          "weight_kg",
+          "dof",
+          "joint_speed_deg_s",
+          "collaborative",
+          "conveyor_tracking",
+          "price_usd_range",
+          "sim_model",
+          "source_urls"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 10
+    }
+  },
+  "additionalProperties": true
+}

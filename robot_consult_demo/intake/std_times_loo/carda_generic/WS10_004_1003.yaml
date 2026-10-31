@@ -1,0 +1,8 @@
+station: WS10
+cycle_id: '004_1003'
+std_time_s:
+  3. Fixate glass front door: 39.0
+  4. Fixate weather strip front door belt end: 37.0
+  5. Fixate posterior vertical coverage: 40.0
+basis: leave-one-cycle-out median of the annotated step durations of the other cycles
+  (emulated standard-work combination sheet)

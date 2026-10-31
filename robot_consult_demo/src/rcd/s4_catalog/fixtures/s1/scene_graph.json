@@ -1,0 +1,234 @@
+{
+ "units": "m",
+ "stations": [
+  {
+   "station": "WS30",
+   "zones": [
+    {
+     "name": "work_zone",
+     "polygon_xy": [
+      [
+       -0.3,
+       0.35
+      ],
+      [
+       0.5,
+       0.35
+      ],
+      [
+       0.5,
+       1.05
+      ],
+      [
+       -0.3,
+       1.05
+      ]
+     ]
+    },
+    {
+     "name": "line_side",
+     "polygon_xy": [
+      [
+       -1.6,
+       1.3
+      ],
+      [
+       -1.0,
+       1.3
+      ],
+      [
+       -1.0,
+       1.7
+      ],
+      [
+       -1.6,
+       1.7
+      ]
+     ]
+    }
+   ],
+   "cycles": [
+    {
+     "cycle_id": "002_0921",
+     "duration_s": 48.0,
+     "video": {
+      "in": null,
+      "out": null,
+      "fps": 30
+     },
+     "human": {
+      "joints_npz": null,
+      "joint_names": [],
+      "fps": 60,
+      "source": "fixture"
+     },
+     "conveyor": {
+      "speed_mm_s": 40.0,
+      "method": "fixture",
+      "direction_xy": [
+       1.0,
+       0.0
+      ]
+     },
+     "objects": [
+      {
+       "name": "workpiece_contact",
+       "positions_m": [
+        [
+         0.015,
+         -0.0066,
+         1.125
+        ],
+        [
+         0.165,
+         -0.0066,
+         1.125
+        ],
+        [
+         0.165,
+         0.0066,
+         0.975
+        ],
+        [
+         0.015,
+         0.0066,
+         0.975
+        ]
+       ]
+      },
+      {
+       "name": "line_side_supply",
+       "positions_m": [
+        [
+         -1.3,
+         1.5,
+         0.95
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "cycle_id": "003_0921",
+     "duration_s": 50.0,
+     "video": {
+      "in": null,
+      "out": null,
+      "fps": 30
+     },
+     "human": {
+      "joints_npz": null,
+      "joint_names": [],
+      "fps": 60,
+      "source": "fixture"
+     },
+     "conveyor": {
+      "speed_mm_s": 41.0,
+      "method": "fixture",
+      "direction_xy": [
+       1.0,
+       0.0
+      ]
+     },
+     "objects": [
+      {
+       "name": "workpiece_contact",
+       "positions_m": [
+        [
+         0.025,
+         -0.0066,
+         1.125
+        ],
+        [
+         0.175,
+         -0.0066,
+         1.125
+        ],
+        [
+         0.175,
+         0.0066,
+         0.975
+        ],
+        [
+         0.025,
+         0.0066,
+         0.975
+        ]
+       ]
+      },
+      {
+       "name": "line_side_supply",
+       "positions_m": [
+        [
+         -1.3,
+         1.5,
+         0.95
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "cycle_id": "004_0921",
+     "duration_s": 52.0,
+     "video": {
+      "in": null,
+      "out": null,
+      "fps": 30
+     },
+     "human": {
+      "joints_npz": null,
+      "joint_names": [],
+      "fps": 60,
+      "source": "fixture"
+     },
+     "conveyor": {
+      "speed_mm_s": 42.0,
+      "method": "fixture",
+      "direction_xy": [
+       1.0,
+       0.0
+      ]
+     },
+     "objects": [
+      {
+       "name": "workpiece_contact",
+       "positions_m": [
+        [
+         0.035,
+         -0.0066,
+         1.125
+        ],
+        [
+         0.185,
+         -0.0066,
+         1.125
+        ],
+        [
+         0.185,
+         0.0066,
+         0.975
+        ],
+        [
+         0.035,
+         0.0066,
+         0.975
+        ]
+       ]
+      },
+      {
+       "name": "line_side_supply",
+       "positions_m": [
+        [
+         -1.3,
+         1.5,
+         0.95
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

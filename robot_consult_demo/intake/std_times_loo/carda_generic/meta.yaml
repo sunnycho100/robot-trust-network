@@ -1,0 +1,4 @@
+config: config/carda_generic.yaml
+out_root: out_generic
+intake: intake/carda.yaml
+cycles: 13

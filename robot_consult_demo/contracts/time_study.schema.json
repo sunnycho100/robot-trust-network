@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "time_study",
+  "type": "object",
+  "required": [
+    "params",
+    "element_stats",
+    "station_stats"
+  ],
+  "properties": {
+    "element_stats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "station",
+          "code",
+          "n",
+          "mean_s",
+          "std_s",
+          "normal_s",
+          "standard_s",
+          "n_required"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "station_stats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "station",
+          "n_cycles",
+          "observed_mean_s",
+          "standard_s",
+          "takt_s"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 0
+    }
+  },
+  "additionalProperties": true
+}

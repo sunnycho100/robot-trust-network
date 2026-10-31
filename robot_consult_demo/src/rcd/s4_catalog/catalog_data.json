@@ -1,0 +1,694 @@
+{
+ "_about": "Curated commercial robot catalog for SME assembly. Values transcribed from the official datasheets / manuals listed in source_urls (checked 2026-10-31). joint_speed_deg_s is ALWAYS the per-joint maximum list J1..Jn from the datasheet. price_usd_range: [low, high] over >=2 public price points where they exist (distributor list prices, EUR at 1.10 USD/EUR, GBP at 1.30) or published estimates; price_is_estimate flags ranges that rest on estimates; price_basis + price_source_urls give the points (checked 2026-10-31). stop_time_s: category-0 stop time of the slowest of J1-J3 at 100% payload/extension/speed from the vendor's stopping-time data (UR values read off UR's graphs); null = not published (cell-space code then uses a stated default). conveyor_tracking is a boolean that is true only when the vendor documents a conveyor/line-tracking feature for that controller; unconfirmed cases are false and explained in conveyor_tracking_feature. Kinova Gen3 and Flexiv Rizon 4 were researched but left out: no public price (Rizon) and no published joint speeds / repeatability (Gen3). sim_model: 'xxx_mj_description' = MuJoCo Menagerie via robot_descriptions; 'vendor_urdf:<stem>' = MJCF built by s6a_robot_sim/models/build.py from the vendor's public ROS description (kinematics transcribed into models/<stem>.json with source and license).",
+ "robots": [
+  {
+   "model": "UR5e",
+   "maker": "Universal Robots",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 5,
+   "reach_mm": 850,
+   "repeatability_mm": 0.03,
+   "weight_kg": 20.7,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    180,
+    180,
+    180,
+    180,
+    180,
+    180
+   ],
+   "tcp_speed_max_m_s": 4.0,
+   "base_footprint_m": [
+    0.151,
+    0.151
+   ],
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "PolyScope Installation > Conveyor Tracking (encoder on DI8-11 or Modbus, up to 2 conveyors)",
+   "conveyor_tracking_source": "https://www.universal-robots.com/manuals/EN/HTML/SW5_24/Content/prod-usr-man/software/PolyScope/content/installation_g5/conveyor_tracking_setup_en.htm",
+   "price_usd_range": [
+    33700,
+    34527
+   ],
+   "price_basis": "distributor list prices: Unchained EUR 30,619 excl. VAT (~USD 33.7k); Vention USD 34,527",
+   "price_is_estimate": false,
+   "stop_time_s": 0.29,
+   "stop_time_note": "Cat 0, J1 shoulder, 100% payload/extension/speed, read from UR stopping-time graph",
+   "sim_model": "ur5e_mj_description",
+   "ecosystem": "UR+ (largest third-party cobot accessory ecosystem incl. OnRobot/Robotiq screwdrivers)",
+   "notes": "Distributors list the 2026 refresh as UR7e.",
+   "source_urls": [
+    "https://www.universal-robots.com/manuals/latest/en/datasheets/ur5e/",
+    "https://www.universal-robots.com/manuals/EN/HTML/SW10_15/Content/prod-usr-man/complianceUR5e/H_g5_sections/stopping_time_n_distances_g5/stoppingTimeAndDistance_en_g5_1.htm"
+   ],
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/universal-robots-ur5e",
+    "https://vention.com/de/parts/universal-robots-ur5e-collaborative-robot-arm-2445"
+   ]
+  },
+  {
+   "model": "UR10e",
+   "maker": "Universal Robots",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 12.5,
+   "reach_mm": 1300,
+   "repeatability_mm": 0.05,
+   "weight_kg": 33.3,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    120,
+    120,
+    180,
+    180,
+    180,
+    180
+   ],
+   "tcp_speed_max_m_s": 4.0,
+   "base_footprint_m": [
+    0.19,
+    0.19
+   ],
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "PolyScope Conveyor Tracking (wizard)",
+   "conveyor_tracking_source": "https://www.universal-robots.com/articles/ur/application-installation/conveyor-tracking-with-wizard/",
+   "price_usd_range": [
+    39300,
+    48623
+   ],
+   "price_basis": "distributor list prices: Unchained EUR 35,736; Vention USD 44,636-48,623",
+   "price_is_estimate": false,
+   "stop_time_s": 0.36,
+   "stop_time_note": "Cat 0, J1 shoulder, 100% payload/extension/speed, read from UR stopping-time graph",
+   "sim_model": "ur10e_mj_description",
+   "ecosystem": "UR+",
+   "notes": "Current UR datasheet (Oct 2026) lists 12.5 kg (originally 10 kg); distributors list it as UR12e.",
+   "source_urls": [
+    "https://www.universal-robots.com/manuals/latest/en/datasheets/ur10e/",
+    "https://www.universal-robots.com/manuals/EN/HTML/SW10_15/Content/prod-usr-man/complianceUR10e/H_g5_sections/stopping_time_n_distances_g5/stoppingTimeAndDistance_en_g5_1.htm"
+   ],
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/universal-robots-ur10e",
+    "https://vention.io/parts/universal-robots-ur10e-2444"
+   ]
+  },
+  {
+   "model": "UR16e",
+   "maker": "Universal Robots",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 16,
+   "reach_mm": 900,
+   "repeatability_mm": 0.05,
+   "weight_kg": 33.1,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    120,
+    120,
+    180,
+    180,
+    180,
+    180
+   ],
+   "tcp_speed_max_m_s": 3.0,
+   "base_footprint_m": [
+    0.19,
+    0.19
+   ],
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "PolyScope Conveyor Tracking",
+   "conveyor_tracking_source": "https://www.universal-robots.com/manuals/EN/HTML/SW5_24/Content/prod-usr-man/software/PolyScope/content/installation_g5/conveyor_tracking_setup_en.htm",
+   "price_usd_range": [
+    43060,
+    63897
+   ],
+   "price_basis": "list prices from 4 sellers: Unchained EUR 39,145; Wiredworkers EUR 43,495; Vention USD 51,979; Automation Distribution USD 59,264-63,897 (SKU range)",
+   "price_is_estimate": false,
+   "stop_time_s": 0.24,
+   "stop_time_note": "Cat 0, J1, read from UR stopping-time graph",
+   "sim_model": "vendor_urdf:ur16e",
+   "ecosystem": "UR+",
+   "source_urls": [
+    "https://www.universal-robots.com/manuals/latest/en/datasheets/ur16e/",
+    "https://www.universal-robots.com/manuals/EN/HTML/SW10_15/Content/prod-usr-man/complianceUR16e/H_g5_sections/stopping_time_n_distances_g5/stoppingTimeAndDistance_en_g5_1.htm"
+   ],
+   "sim_model_source": "https://github.com/UniversalRobots/Universal_Robots_ROS2_Description (rolling) config/ur16e/default_kinematics.yaml + joint_limits.yaml",
+   "sim_model_license": "BSD-3-Clause (kinematics yaml; meshes not used)",
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/universal-robots-ur16e",
+    "https://www.wiredworkers.io/de/?p=6454",
+    "https://vention.com/parts/universal-robots-ur16e-collaborative-robot-arm-2443",
+    "https://automationdistribution.com/universal-robots-ur16e"
+   ]
+  },
+  {
+   "model": "UR15",
+   "maker": "Universal Robots",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 15,
+   "reach_mm": 1300,
+   "repeatability_mm": 0.05,
+   "weight_kg": 40.7,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    180,
+    180,
+    240,
+    300,
+    300,
+    300
+   ],
+   "tcp_speed_max_m_s": 5.0,
+   "base_footprint_m": [
+    0.204,
+    0.204
+   ],
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "PolyScope Conveyor Tracking (documented for UR e-Series/PolyScope; to confirm for PolyScope X in RFQ)",
+   "conveyor_tracking_source": "https://www.universal-robots.com/articles/ur/application-installation/conveyor-tracking-with-wizard/",
+   "price_usd_range": [
+    44476,
+    63862
+   ],
+   "price_basis": "list prices: Elmark EUR 40,433 net; Vention and Electromate USD 53,835; Automation Distribution USD 58,284-63,862",
+   "price_is_estimate": false,
+   "stop_time_s": null,
+   "stop_time_note": "not published at the e-Series URL pattern",
+   "sim_model": "vendor_urdf:ur15",
+   "ecosystem": "UR+",
+   "source_urls": [
+    "https://www.universal-robots.com/manuals/latest/en/datasheets/ur15/",
+    "https://www.universal-robots.com/manuals/latest/en/techsheets/ur15/"
+   ],
+   "sim_model_source": "https://github.com/UniversalRobots/Universal_Robots_ROS2_Description (rolling) config/ur15/default_kinematics.yaml + joint_limits.yaml",
+   "sim_model_license": "BSD-3-Clause (kinematics yaml; UR15 meshes are under UR graphical-documentation terms and are not used)",
+   "price_source_urls": [
+    "https://elmark-automation.com/shop/universal-robots/universal-robots-ur15",
+    "https://vention.com/parts/universal-robots-ur15-collaborative-robot-arm-3303",
+    "https://www.electromate.com/ur15-collaborative-robot/",
+    "https://automationdistribution.com/universal-robots-ur15-collaborative-robot/"
+   ]
+  },
+  {
+   "model": "CRX-10iA",
+   "maker": "FANUC",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 10,
+   "reach_mm": 1249,
+   "repeatability_mm": 0.04,
+   "weight_kg": 40,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    120,
+    120,
+    180,
+    180,
+    180,
+    180
+   ],
+   "tcp_speed_max_m_s": 1.0,
+   "base_footprint_m": null,
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "Line tracking via iRVision / iRPickTool; CRX catalog lists '3D Visual Tracking'. Exact CRX option code to confirm in RFQ",
+   "conveyor_tracking_source": "https://www.fanucamerica.com/products/software/robot/irpicktool",
+   "price_usd_range": [
+    40700,
+    51434
+   ],
+   "price_basis": "list prices: Unchained EUR 37,000 excl. VAT; Vention USD 51,434 (Vention 2025 cost guide estimate USD 46,026)",
+   "price_is_estimate": false,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": "vendor_urdf:crx10ia",
+   "ecosystem": "FANUC CRX ecosystem (tablet TP, plug-ins)",
+   "notes": "TCP 1000 mm/s in collaborative mode, 2000 mm/s high-speed mode (catalog RCRX(E)-02). Product page says +/-0.05 mm, 39 kg; datasheet/catalog +/-0.04 mm, 40 kg (catalog used).",
+   "source_urls": [
+    "https://www.fanuc.com/fmm/my/product/catalog/RCRX(E)-02.pdf",
+    "https://www.fanucamerica.com/uploads/files/data-sheets/CRX-10iA-data-sheet.pdf",
+    "https://www.fanucamerica.com/products/robot/crx-10ia"
+   ],
+   "sim_model_source": "https://github.com/FANUC-CORPORATION/fanuc_description (main) fanuc_crx_description/urdf/crx10ia_urdf_macro.xacro",
+   "sim_model_license": "Apache-2.0",
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/fanuc-crx-10ia",
+    "https://vention.com/parts/fanuc-crx-10ia-collaborative-robot-arm-1923",
+    "https://vention.com/blogs/industrial-automation-design/fanuc-robot-costs-guide-1004"
+   ]
+  },
+  {
+   "model": "CRX-10iA/L",
+   "maker": "FANUC",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 10,
+   "reach_mm": 1418,
+   "repeatability_mm": 0.04,
+   "weight_kg": 40,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    120,
+    120,
+    180,
+    180,
+    180,
+    180
+   ],
+   "tcp_speed_max_m_s": 1.0,
+   "base_footprint_m": null,
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "Line tracking via iRVision / iRPickTool (as CRX-10iA)",
+   "conveyor_tracking_source": "https://www.fanucamerica.com/products/software/robot/irpicktool",
+   "price_usd_range": [
+    42350,
+    56932
+   ],
+   "price_basis": "list prices: Unchained EUR 38,500 excl. VAT; Vention USD 56,932 (Vention 2025 guide estimate USD 50,723)",
+   "price_is_estimate": false,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": "vendor_urdf:crx10ia_l",
+   "ecosystem": "FANUC CRX ecosystem",
+   "source_urls": [
+    "https://www.fanucamerica.com/uploads/files/data-sheets/CRX-10iA-L-data-sheet.pdf",
+    "https://www.fanucamerica.com/products/robot/crx-10ia-l"
+   ],
+   "sim_model_source": "https://github.com/FANUC-CORPORATION/fanuc_description (main) fanuc_crx_description/urdf/crx10ia_l_urdf_macro.xacro (same values in ros-industrial/fanuc noetic-devel fanuc_crx10ia_support/urdf/crx10ial_macro.xacro)",
+   "sim_model_license": "Apache-2.0",
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/fanuc-crx-10ial",
+    "https://vention.com/parts/fanuc-crx-10ial-collaborative-robot-arm-1922"
+   ]
+  },
+  {
+   "model": "M1013",
+   "maker": "Doosan Robotics",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 10,
+   "reach_mm": 1300,
+   "repeatability_mm": 0.05,
+   "weight_kg": 33,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    120,
+    120,
+    180,
+    225,
+    225,
+    225
+   ],
+   "tcp_speed_max_m_s": 1.0,
+   "base_footprint_m": null,
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "Conveyor Tracking (DRL set_conveyor / tracking_conveyor / untracking_conveyor; default 0.3 s accel/decel)",
+   "conveyor_tracking_source": "https://manual.doosanrobotics.com/en/programming-manual/3.3.0/publish/tracking_conveyor-conv_id-time-0-3",
+   "price_usd_range": [
+    36850,
+    42000
+   ],
+   "price_basis": "list prices: Unchained EUR 33,500 excl. VAT; Vention USD 42,000 (arm + controller + pendant)",
+   "price_is_estimate": false,
+   "stop_time_s": 0.315,
+   "stop_time_note": "Cat 0, J2, 100% extension/speed/payload (Doosan manual)",
+   "sim_model": "vendor_urdf:m1013",
+   "ecosystem": "Doosan DART-Suite store",
+   "source_urls": [
+    "https://manual.doosanrobotics.com/en/user-manual/3.2.1/1-m-h-series/basic-specifications",
+    "https://manual.doosanrobotics.com/en/user-manual/3.2.1/1-m-h-series/axis-specification",
+    "https://manual.doosanrobotics.com/en/user-manual/3.6.0/1-m-h-series/m1013-stop-category"
+   ],
+   "sim_model_source": "https://github.com/DoosanRobotics/doosan-robot2 (humble) dsr_description2/xacro/macro.m1013.white.xacro",
+   "sim_model_license": "BSD-3-Clause (repository)",
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/doosan-robotics-m1013",
+    "https://vention.com/parts/doosan-m1013-collaborative-robot-1975"
+   ]
+  },
+  {
+   "model": "M0617",
+   "maker": "Doosan Robotics",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 6,
+   "reach_mm": 1700,
+   "repeatability_mm": 0.1,
+   "weight_kg": 34,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    100,
+    100,
+    150,
+    225,
+    225,
+    225
+   ],
+   "tcp_speed_max_m_s": 1.0,
+   "base_footprint_m": null,
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "Conveyor Tracking (DRL, as M1013)",
+   "conveyor_tracking_source": "https://manual.doosanrobotics.com/en/programming-manual/3.3.0/publish/tracking_conveyor-conv_id-time-0-3",
+   "price_usd_range": [
+    39457,
+    44500
+   ],
+   "price_basis": "list prices: Unchained EUR 35,870 excl. VAT; Vention USD 44,500 (arm + controller + pendant)",
+   "price_is_estimate": false,
+   "stop_time_s": 0.326,
+   "stop_time_note": "Cat 0, J2, 100% extension/speed/payload (Doosan manual)",
+   "sim_model": "vendor_urdf:m0617",
+   "ecosystem": "Doosan DART-Suite store",
+   "source_urls": [
+    "https://manual.doosanrobotics.com/en/user-manual/3.2.1/1-m-h-series/basic-specifications",
+    "https://manual.doosanrobotics.com/en/user-manual/3.6.0/1-m-h-series/m0617-stop-category"
+   ],
+   "sim_model_source": "https://github.com/DoosanRobotics/doosan-robot2 (humble) dsr_description2/xacro/macro.m0617.white.xacro",
+   "sim_model_license": "BSD-3-Clause (repository)",
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/doosan-robotics-m0617",
+    "https://vention.com/parts/doosan-m0617-collaborative-robot-2043"
+   ]
+  },
+  {
+   "model": "GoFa CRB 15000-5/0.95",
+   "maker": "ABB",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 5,
+   "reach_mm": 950,
+   "repeatability_mm": 0.02,
+   "weight_kg": 28,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    125,
+    125,
+    140,
+    200,
+    200,
+    200
+   ],
+   "tcp_speed_max_m_s": 2.2,
+   "base_footprint_m": [
+    0.165,
+    0.165
+   ],
+   "collaborative": true,
+   "conveyor_tracking": false,
+   "conveyor_tracking_feature": "RobotWare 7 option 606-1 'Conveyor Tracking' exists, but availability on GoFa / OmniCore C30 was not confirmed -> treated as not supported until confirmed in RFQ",
+   "conveyor_tracking_source": "https://library.e.abb.com/public/51c0fc4c87a036f6c1257b1300579b96/Data%20sheet%20Conveyor_tracking.pdf",
+   "price_usd_range": [
+    33000,
+    41300
+   ],
+   "price_basis": "distributor list price range Unchained EUR 30,000 (Basic) - 37,500 (Pro) excl. VAT; single seller",
+   "price_is_estimate": false,
+   "stop_time_s": null,
+   "stop_time_note": "not published (datasheet: e-stop deceleration 61.6 m/s^2)",
+   "sim_model": null,
+   "ecosystem": "ABB RobotStudio / Wizard easy programming",
+   "notes": "Current family datasheet +/-0.02 mm (2021 sheet: 0.05 mm). Variants GoFa 10 (10 kg/1520 mm) and GoFa 12 (12 kg/1270 mm) not listed here.",
+   "source_urls": [
+    "https://hartfiel.com/wp-content/uploads/2024/10/GoFa-CRB-15000-Datasheet.pdf",
+    "https://one.robotics.abb.com/en/robots/p/GoFa-CRB-15000"
+   ],
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/abb-gofa-crb-15000"
+   ],
+   "sim_model_note": "no kinematic model built in this study: not in MuJoCo Menagerie and the vendor description was not transcribed (the model already fails the conveyor-tracking requirement) -> excluded from purchasable candidates"
+  },
+  {
+   "model": "LBR iisy 11 R1300",
+   "maker": "KUKA",
+   "type": "collaborative 6-axis arm",
+   "payload_kg": 11,
+   "reach_mm": 1300,
+   "repeatability_mm": 0.05,
+   "weight_kg": 46.3,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    200,
+    200,
+    200,
+    230,
+    260,
+    430
+   ],
+   "tcp_speed_max_m_s": null,
+   "base_footprint_m": [
+    0.275,
+    0.275
+   ],
+   "collaborative": true,
+   "conveyor_tracking": false,
+   "conveyor_tracking_feature": "iiQKA.ConveyorTech package exists on iiQKA.OS2 but iisy compatibility not stated -> treated as not supported until confirmed",
+   "conveyor_tracking_source": "https://control.com/news/kuka-brings-lbr-iisy-cobots-to-iiqka.os2-automation-platform/",
+   "price_usd_range": [
+    27500,
+    46800
+   ],
+   "price_basis": "LOW CONFIDENCE: Unchained EUR 25,000 now and EUR 29,705 earlier; upper end from an Active Robots GBP 36,000 search-result title (page not loadable, VAT basis unknown)",
+   "price_is_estimate": true,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": null,
+   "ecosystem": "KUKA iiQKA ecosystem",
+   "notes": "Joint speeds from the LBR iisy 6 R1300 data sheet (same arm, identical in distributor listing for 11 R1300).",
+   "source_urls": [
+    "https://www.kuka.com/en-de/future-production/iiqka/lbr-iisy",
+    "https://uploads.unchainedrobotics.de/media/file_upload/LBR%20iisy%206%20R1300%20data%20sheet_16320e32.pdf"
+   ],
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/kuka-lbr-iisy-11-r1300",
+    "https://www.fairino.us/post/fairino-fr10-vs-kuka-lbr-iisy-11-r1300-affordable-10-kg-cobot-vs-premium-german-industrial-automa",
+    "https://www.active-robots.com/kuka-lbr-iisy-11-r1300.html"
+   ],
+   "sim_model_note": "no kinematic model built in this study: not in MuJoCo Menagerie and the vendor description was not transcribed (the model already fails the conveyor-tracking requirement) -> excluded from purchasable candidates"
+  },
+  {
+   "model": "LBR iiwa 14 R820",
+   "maker": "KUKA",
+   "type": "collaborative 7-axis arm (torque sensing)",
+   "payload_kg": 14,
+   "reach_mm": 820,
+   "repeatability_mm": 0.15,
+   "weight_kg": 32.7,
+   "dof": 7,
+   "joint_speed_deg_s": [
+    85,
+    85,
+    100,
+    75,
+    130,
+    135,
+    135
+   ],
+   "tcp_speed_max_m_s": null,
+   "base_footprint_m": [
+    0.256,
+    0.256
+   ],
+   "collaborative": true,
+   "conveyor_tracking": false,
+   "conveyor_tracking_feature": "No conveyor-tracking feature found for Sunrise.OS",
+   "conveyor_tracking_source": null,
+   "price_usd_range": [
+    60000,
+    80000
+   ],
+   "price_basis": "ESTIMATE: price guides only (Standard Bots 2024 USD 65-70k; RoboZaps USD 60-80k; Grabarobot USD 65-78k); no new list price found",
+   "price_is_estimate": true,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": "iiwa14_mj_description",
+   "ecosystem": "KUKA Sunrise (research/industrial)",
+   "notes": "Weight from the CR version data sheet.",
+   "source_urls": [
+    "https://www.kuka.com/en-de/products/robot-systems/industrial-robots/lbr-iiwa",
+    "https://k2tool.ru/downloads/709-broshjura-promyshlennogo-robota-kuka-lbr-iiwa-14-r820"
+   ],
+   "price_source_urls": [
+    "https://standardbots.com/articles/kuka-robot-pricing",
+    "https://robozaps.com/brands/kuka"
+   ]
+  },
+  {
+   "model": "TM12S",
+   "maker": "Techman Robot",
+   "type": "collaborative 6-axis arm (built-in camera)",
+   "payload_kg": 12,
+   "reach_mm": 1300,
+   "repeatability_mm": 0.03,
+   "weight_kg": 33.3,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    130,
+    130,
+    210,
+    225,
+    225,
+    450
+   ],
+   "tcp_speed_max_m_s": 4.0,
+   "base_footprint_m": null,
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "TMflow 'CV Flying Trigger' node with conveyor tracking (TMflow >= 2.24, HW5.0)",
+   "conveyor_tracking_source": "https://www2.tm-robot.com/ko/docs/an-easy-way-to-build-flying-trigger-applications-combined-with-conveyor-tracking/",
+   "price_usd_range": [
+    34000,
+    43300
+   ],
+   "price_basis": "PARTLY ESTIMATE: Wiredworkers TM12S EUR 32,800 tax excl. (~USD 36.1k); TM12 (non-S) USD 34,000 (roboticscenter.ai) as low end; high end = +20% EU-to-US distributor gap observed for other models (estimate)",
+   "price_is_estimate": true,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": "vendor_urdf:tm12s",
+   "ecosystem": "TM Plug&Play",
+   "notes": "Joint speeds from a distributor reproduction of the Techman S-series spec table.",
+   "source_urls": [
+    "https://cdn.shopify.com/s/files/1/0709/9449/3693/files/Fowler_Techman_Robot_082924.pdf",
+    "https://www.tm-robot.com/ja/?p=102024"
+   ],
+   "sim_model_source": "https://github.com/TechmanRobotInc/tm2_ros2 (humble) tm_description/xacro/macro.tm12s-nominal.urdf.xacro",
+   "sim_model_license": "BSD-3-Clause (TECHMAN ROBOT INC.)",
+   "price_source_urls": [
+    "https://shop.wiredworkers.io/en_GB/shop/techman-robot-tm12-920",
+    "https://www.roboticscenter.ai/store/product/techman-tm12"
+   ]
+  },
+  {
+   "model": "Franka Research 3",
+   "maker": "Franka Robotics",
+   "type": "7-axis research arm (torque sensing)",
+   "payload_kg": 3,
+   "reach_mm": 855,
+   "repeatability_mm": 0.1,
+   "weight_kg": 18.3,
+   "dof": 7,
+   "joint_speed_deg_s": [
+    150,
+    150,
+    150,
+    150,
+    301,
+    301,
+    301
+   ],
+   "tcp_speed_max_m_s": 2.0,
+   "base_footprint_m": null,
+   "collaborative": false,
+   "conveyor_tracking": false,
+   "conveyor_tracking_feature": "None native (custom FCI/ROS code)",
+   "conveyor_tracking_source": null,
+   "price_usd_range": [
+    27900,
+    29218
+   ],
+   "price_basis": "list prices: Vention USD 29,218; Funduino EUR 30,200 incl. VAT and Hand (~USD 27.9k net)",
+   "price_is_estimate": false,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": "fr3_mj_description",
+   "ecosystem": "research (ROS/FCI)",
+   "notes": "Research arm with Cat 0/1/2 stops; not marketed for industrial collaborative production -> collaborative=false.",
+   "source_urls": [
+    "https://franka.de/hubfs/Datasheet%20Franka%20Research%203_R02212_2.6_EN_July%202026.pdf?hsLang=en"
+   ],
+   "price_source_urls": [
+    "https://vention.com/de/parts/franka-robotics-fr3-4193",
+    "https://funduino.com/en/products/franka-research-3"
+   ]
+  },
+  {
+   "model": "xArm 7",
+   "maker": "UFACTORY",
+   "type": "7-axis light arm",
+   "payload_kg": 3.5,
+   "reach_mm": 700,
+   "repeatability_mm": 0.1,
+   "weight_kg": 14.3,
+   "dof": 7,
+   "joint_speed_deg_s": [
+    180,
+    180,
+    180,
+    180,
+    180,
+    180,
+    180
+   ],
+   "tcp_speed_max_m_s": 1.0,
+   "base_footprint_m": [
+    0.126,
+    0.126
+   ],
+   "collaborative": false,
+   "conveyor_tracking": false,
+   "conveyor_tracking_feature": "None found",
+   "conveyor_tracking_source": null,
+   "price_usd_range": [
+    9999,
+    13100
+   ],
+   "price_basis": "vendor store list USD 9,999; resellers USD 12-13.1k",
+   "price_is_estimate": false,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": "xarm7_mj_description",
+   "ecosystem": "UFACTORY Studio / ROS",
+   "notes": "Collision detection only; no ISO 10218-1 / PL d certification verified -> collaborative=false.",
+   "source_urls": [
+    "https://docs.xarm.ufactory.cc/8.technical_specifications.html"
+   ],
+   "price_source_urls": [
+    "https://www.shop.ufactory.cc/products/xarm-7"
+   ]
+  },
+  {
+   "model": "HC10DTP",
+   "maker": "Yaskawa",
+   "type": "collaborative 6-axis arm (IP67)",
+   "payload_kg": 10,
+   "reach_mm": 1370,
+   "repeatability_mm": 0.05,
+   "weight_kg": 58,
+   "dof": 6,
+   "joint_speed_deg_s": [
+    130,
+    130,
+    180,
+    180,
+    250,
+    250
+   ],
+   "tcp_speed_max_m_s": null,
+   "base_footprint_m": null,
+   "collaborative": true,
+   "conveyor_tracking": true,
+   "conveyor_tracking_feature": "Conveyor Synchronized Function (YRC1000 / YRC1000micro option; SYSTART/SYEND)",
+   "conveyor_tracking_source": "https://knowledge.motoman.com/hc/en-us/articles/4408233115159-Conveyor-Tracking-Setup",
+   "price_usd_range": [
+    41932,
+    51667
+   ],
+   "price_basis": "list prices: Unchained HC10DTP EUR 38,120 excl. VAT; Centro MRO USD 51,667 for HC10DT + YRC1000micro (sibling variant, proxy)",
+   "price_is_estimate": false,
+   "stop_time_s": null,
+   "stop_time_note": "not published",
+   "sim_model": "vendor_urdf:hc10dtp",
+   "ecosystem": "Yaskawa Smart Pendant / MotoPlus",
+   "notes": "Reach 1370 mm absolute (1200 mm effective).",
+   "source_urls": [
+    "https://yaskawa.de/Global%20Assets/Downloads/Brochures_Catalogues/Robotics/MOTOMAN_Robots/HC-DTP-Series/Flyer_Cobot_HC10DTP_E_02.2022.pdf",
+    "https://knowledge.motoman.com/hc/en-us/articles/7135659410455-MotoSight-2D-with-Conveyor-Tracking-Setup-Guide"
+   ],
+   "sim_model_source": "https://github.com/ros-industrial/motoman (kinetic-devel) motoman_hc10_support/urdf/hc10dtp_b00_macro.xacro",
+   "sim_model_license": "BSD-3-Clause / Apache-2.0 (repository badges)",
+   "price_source_urls": [
+    "https://unchainedrobotics.de/en/products/robot/cobot/yaskawa-hc10dtp",
+    "https://centromrosupply.com/product/yaskawa-183489-2"
+   ]
+  }
+ ]
+}

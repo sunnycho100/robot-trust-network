@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "allocation",
+  "type": "object",
+  "required": [
+    "solver",
+    "scenarios"
+  ],
+  "properties": {
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "objective",
+          "robots",
+          "assignment",
+          "station_times",
+          "checks"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 3
+    }
+  },
+  "additionalProperties": true
+}

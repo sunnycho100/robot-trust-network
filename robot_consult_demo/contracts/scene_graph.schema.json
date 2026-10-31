@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "scene_graph",
+  "type": "object",
+  "required": [
+    "units",
+    "stations"
+  ],
+  "properties": {
+    "units": {
+      "const": "m"
+    },
+    "stations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "station",
+          "cycles",
+          "zones"
+        ],
+        "properties": {
+          "station": {
+            "type": "string"
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "polygon_xy"
+              ],
+              "properties": {},
+              "additionalProperties": true
+            },
+            "minItems": 0
+          },
+          "cycles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cycle_id",
+                "duration_s",
+                "video",
+                "human",
+                "conveyor",
+                "objects"
+              ],
+              "properties": {
+                "cycle_id": {
+                  "type": "string"
+                },
+                "duration_s": {
+                  "type": "number"
+                },
+                "video": {
+                  "type": "object",
+                  "required": [
+                    "in",
+                    "out",
+                    "fps"
+                  ],
+                  "properties": {},
+                  "additionalProperties": true
+                },
+                "human": {
+                  "type": "object",
+                  "required": [
+                    "joints_npz",
+                    "joint_names",
+                    "fps",
+                    "source"
+                  ],
+                  "properties": {},
+                  "additionalProperties": true
+                },
+                "conveyor": {
+                  "type": "object",
+                  "required": [
+                    "speed_mm_s",
+                    "method"
+                  ],
+                  "properties": {},
+                  "additionalProperties": true
+                },
+                "objects": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "positions_m"
+                    ],
+                    "properties": {},
+                    "additionalProperties": true
+                  },
+                  "minItems": 0
+                }
+              },
+              "additionalProperties": true
+            },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

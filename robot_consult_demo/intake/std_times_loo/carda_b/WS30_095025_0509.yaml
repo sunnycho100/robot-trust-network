@@ -1,0 +1,12 @@
+station: WS30
+cycle_id: 095025_0509
+std_time_s:
+  1. Fixate speaker: 51.0
+  2. Fixate door panel: 75.0
+  3. Fixate window control panel: 25.5
+  4. Fixate speaker frame: 13.0
+  5. Adjust WS: 29.5
+  6. Fixate anti-vibration pad: 21.0
+  7. Move cart: 12.0
+basis: leave-one-cycle-out median of the annotated step durations of the other cycles
+  (emulated standard-work combination sheet)
