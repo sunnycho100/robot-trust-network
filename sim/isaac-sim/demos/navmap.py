@@ -3,7 +3,9 @@
 Pure numpy, tested on the Mac (test_navmap.py). Input is world points (z up) from any mesh: a stock Isaac scene
 (stage_points below, inside Isaac Sim) or our reconstruction's collision mesh. A cell is blocked when any point sits
 between `step` and `height` above the floor, then the blocked cells grow by the robot radius, so paths are for the
-robot's centre. Cells outside the points' extent count as blocked.
+robot's centre. Cells outside the points' extent count as blocked. With support=True (reconstructions, where nothing
+is under a hole in the collider) a cell also needs a point within `step` of the floor, after a 3 by 3 closing that
+fills sampling gaps; stock scenes keep support=False because their floor is a few big triangles with no inner points.
 """
 import heapq
 import math
@@ -11,8 +13,19 @@ import math
 import numpy as np
 
 
+def _grow(mask, r):
+    """Dilate a boolean grid by a disk of radius r cells."""
+    k = int(r)
+    pad, out = np.pad(mask, k), np.zeros_like(mask)
+    for di in range(-k, k + 1):
+        for dj in range(-k, k + 1):
+            if di * di + dj * dj <= r * r:
+                out |= pad[k + di:k + di + mask.shape[0], k + dj:k + dj + mask.shape[1]]
+    return out
+
+
 class NavMap:
-    def __init__(self, points, radius=0.4, res=0.1, step=0.1, height=1.8, floor_z=None):
+    def __init__(self, points, radius=0.4, res=0.1, step=0.1, height=1.8, floor_z=None, support=False):
         p = np.asarray(points, float)
         if floor_z is None:
             # ponytail: the densest 5 cm z slab in the lowest 30% of points; pass floor_z for multi-level scenes
@@ -30,13 +43,14 @@ class NavMap:
         ij = ij[(ij >= 0).all(1) & (ij < self.shape).all(1)]
         hit = np.zeros(self.shape, bool)
         hit[ij[:, 0], ij[:, 1]] = True
-        r = int(math.ceil(radius / res))
-        pad = np.pad(hit, r)
-        self.blocked = np.zeros(self.shape, bool)
-        for di in range(-r, r + 1):
-            for dj in range(-r, r + 1):
-                if di * di + dj * dj <= (radius / res) ** 2:
-                    self.blocked |= pad[r + di:r + di + self.shape[0], r + dj:r + dj + self.shape[1]]
+        if support:
+            fl = p[np.abs(h) <= step, :2]
+            ij = np.floor((fl - self.lo) / res).astype(int)
+            ij = ij[(ij >= 0).all(1) & (ij < self.shape).all(1)]
+            ok = np.zeros(self.shape, bool)
+            ok[ij[:, 0], ij[:, 1]] = True
+            hit |= _grow(~_grow(ok, 1.5), 1.5)  # closing: dilate, then erode (= grow the complement)
+        self.blocked = _grow(hit, radius / res)
 
     def cell(self, x, y):
         return tuple(np.floor((np.asarray([x, y]) - self.lo) / self.res).astype(int))

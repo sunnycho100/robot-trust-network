@@ -31,6 +31,22 @@ assert m.clear((-3, 0), (-1, 0)) and not m.clear((-3, 0), (3, 0))
 # goal inside an obstacle or no way through
 sealed = NavMap(np.concatenate([floor, np.c_[np.zeros(4000), rng.uniform(-5, 5, 4000), rng.uniform(0, 3, 4000)]]), radius=0.35)
 assert sealed.path((-3, 0), (3, 0)) is None
+# a reconstruction collider with a 1.2 m hole in the floor (no ground plane underneath): with support=True the hole is
+# blocked and the path goes round it; the floor's own sampling gaps (about 1 in 7 empty 10 cm cells here) stay free
+holed = floor[np.hypot(floor[:, 0], floor[:, 1]) > 0.6]
+assert NavMap(holed, radius=0.35, floor_z=0.0).path((-3, 0), (3, 0)) == [(-3, 0), (3, 0)]  # without: straight over it
+s = NavMap(holed, radius=0.35, floor_z=0.0, support=True)
+assert not s.free(0, 0) and s.free(-3, 0) and s.free(3, 0)
+route = s.path((-3, 0), (3, 0))
+assert route and len(route) > 2, route
+for a, b in zip(route, route[1:]):
+    t = np.linspace(0, 1, 200)[:, None]
+    assert (np.hypot(*(np.asarray(a) + t * (np.subtract(b, a))).T) > 0.6 + 0.3).all(), "path crosses the hole"
+inner = (np.abs(s.lo[0] + (np.arange(s.shape[0]) + 0.5) * s.res) < 4)[:, None] & \
+        (np.abs(s.lo[1] + (np.arange(s.shape[1]) + 0.5) * s.res) < 4)[None, :]
+plain = NavMap(holed, radius=0.35, floor_z=0.0)
+assert (s.blocked & ~plain.blocked & inner).sum() * s.res ** 2 < 4.0, "support mask blocks far more than the hole"
+
 # one H1 stand-in follows the path with fleet.command, advancing waypoints at 0.5 m as multi_robot_scene.py --plan does.
 # Following cuts corners by about 0.15 m, so the plan inflates by body radius (0.3) plus 0.2 m, as multi_robot_scene does.
 from fleet import command, smooth
