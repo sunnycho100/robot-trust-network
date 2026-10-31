@@ -2,6 +2,7 @@
 
     python score_robot.py RECON.ply GT OUT.json [--poses sparse/0/images.txt] [--band 0.1 1.8] [--radius 0.3]
     python score_robot.py oracle WALK_DIR OUT.ply      GT depth of the training frames as fused points with normals
+    python score_robot.py lid MESH.ply WALK_DIR IMAGES_TXT  share of GT floor cells whose mesh is floor, lid or absent
 
 GT is a capture_walkthrough.py folder (its training-frame depth back-projected: only what the cameras saw, as
 critic_synthetic_scoring.md finding 3 asks) or a mesh. Both in the same metric, Z up frame. RECON can be points or a
@@ -195,6 +196,28 @@ def demo():
     print("score_robot self-check passed")
 
 
+def lid(mesh_path, walk, poses):
+    """Missing floor or lid (critic_tsdf_collider.md action 1): cast down from 1.85 m over every GT floor cell into
+    the mesh and sort the first hit into floor (within 5 cm), lid (0.1 to 1.8 m up), other, or nothing."""
+    import open3d as o3d
+    c = camera_centres(poses)
+    lo, hi = c[:, :2].min(0) - 3, c[:, :2].max(0) + 3
+    gt = depth_points(walk)
+    gt = gt[np.all((gt[:, :2] >= lo) & (gt[:, :2] <= hi), 1)]
+    z_floor = find_floor(gt, c[:, 2].min())
+    shape = tuple(np.ceil((hi - lo) / CELL).astype(int))
+    cells = np.argwhere(~np.isnan(floor_map(gt, lo, shape, z_floor, 0.05)))
+    xy = lo + (cells + 0.5) * CELL
+    rays = np.c_[xy, np.full(len(xy), z_floor + 1.85), np.zeros((len(xy), 2)), -np.ones(len(xy))]
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(o3d.io.read_triangle_mesh(mesh_path)))
+    t = scene.cast_rays(o3d.core.Tensor(rays.astype(np.float32)))["t_hit"].numpy()
+    up = 1.85 - t  # hit height above the floor (-inf where nothing was hit)
+    n = len(up)
+    return {"cells": n, "floor": float((np.abs(up) < 0.05).sum() / n), "lid": float(((up > 0.1) & (up < 1.8)).sum() / n),
+            "nothing": float(np.isinf(t).sum() / n), "z_floor": float(z_floor)}
+
+
 def main():
     if len(sys.argv) == 1:
         return demo()
@@ -203,6 +226,8 @@ def main():
         pc = depth_points(sys.argv[2], normals=True)
         o3d.io.write_point_cloud(sys.argv[3], pc)
         return print(f"oracle {len(pc.points)} points -> {sys.argv[3]}")
+    if sys.argv[1] == "lid":
+        return print(json.dumps(lid(*sys.argv[2:5]), indent=1))
     ap = argparse.ArgumentParser()
     ap.add_argument("recon"), ap.add_argument("gt"), ap.add_argument("out")
     ap.add_argument("--poses"), ap.add_argument("--band", type=float, nargs=2, default=(0.1, 1.8))
