@@ -17,7 +17,8 @@ from scipy.spatial.transform import Rotation
 
 def camera_to_world(images_txt):
     poses = []
-    lines = [l for l in Path(images_txt).read_text().splitlines() if l and not l.startswith("#")]
+    # keep empty POINTS2D lines (a known-pose model has them) so [::2] lands on image lines
+    lines = [l for l in Path(images_txt).read_text().rstrip("\n").splitlines() if not l.startswith("#")]
     for line in lines[::2]:  # each image line is followed by its 2D points line
         qw, qx, qy, qz, tx, ty, tz = map(float, line.split()[1:8])
         R = Rotation.from_quat([qx, qy, qz, qw]).as_matrix()  # world -> camera

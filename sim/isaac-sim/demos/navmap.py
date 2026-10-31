@@ -92,13 +92,16 @@ class NavMap:
 
 def stage_points(root):
     """World points of every visible Mesh under a USD prim (inside Isaac Sim), same traversal as
-    capture_walkthrough.py. ponytail: vertices only; a big flat floor with few vertices still shows up because only
-    obstacles need points, and cells with no points at all are free inside the scene's extent."""
-    from pxr import Usd, UsdGeom
+    capture_walkthrough.py, plus invisible Meshes with collision (a splat scene's collider from add_mesh_to_usdz).
+    ponytail: vertices only; a big flat floor with few vertices still shows up because only obstacles need points,
+    and cells with no points at all are free inside the scene's extent."""
+    from pxr import Usd, UsdGeom, UsdPhysics
 
     out = []
     for p in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
-        if not p.IsA(UsdGeom.Mesh) or UsdGeom.Imageable(p).ComputeVisibility() == UsdGeom.Tokens.invisible:
+        if not p.IsA(UsdGeom.Mesh):
+            continue
+        if UsdGeom.Imageable(p).ComputeVisibility() == UsdGeom.Tokens.invisible and not p.HasAPI(UsdPhysics.CollisionAPI):
             continue
         pts = UsdGeom.Mesh(p).GetPointsAttr().Get()
         if pts:
