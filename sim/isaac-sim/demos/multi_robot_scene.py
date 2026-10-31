@@ -33,6 +33,7 @@ parser.add_argument("--stop", nargs=4, type=float, action="append", metavar=("RO
 parser.add_argument("--plan", action="store_true", help="with --goal: A* paths around the scene's obstacles")
 parser.add_argument("--eye", nargs=3, type=float, metavar=("X", "Y", "Z"), help="camera position; default southwest of the robots")
 parser.add_argument("--target", nargs=3, type=float, metavar=("X", "Y", "Z"), help="camera look-at; default the robots' centre at 0.3 m")
+parser.add_argument("--log", default="fleet", help="fleet modes: writes LOG_traj.csv (50 Hz poses) and, with --plan, LOG_navmap.npz")
 parser.add_argument("--device", type=str, choices=["cpu", "cuda"], default="cuda")
 parser.add_argument("--stream", action="store_true", help="stream over WebRTC to the web viewer (inside the container)")
 args, sys.argv[1:] = parser.parse_known_args()
@@ -141,17 +142,21 @@ if FLEET:
             # ponytail: radii are half the body length from spec sheets, approximate; centre distance is still used between robots
             pts = stage_points(stage.GetPrimAtPath("/World/Scene"))
             BODY = {"h1": 0.3, "go2": 0.35, "anymal": 0.5, "spot": 0.55}
-            nav = {k: NavMap(pts, radius=BODY[k] + 0.2, floor_z=None if args.scene else 0.0) for k in {c[0] for c in robots_cfg}}
+            # a reconstruction has nothing under a hole in its collider, so there a cell also needs floor under it
+            nav = {k: NavMap(pts, radius=BODY[k] + 0.2, floor_z=None if args.scene else 0.0, support=bool(args.scene)) for k in {c[0] for c in robots_cfg}}
             n0 = nav[robots_cfg[0][0]]
-            np.savez("navmap.npz", blocked=n0.blocked, lo=n0.lo, res=n0.res, points=pts[::max(1, len(pts) // 200000)])
             print(f"[fleet] navmap {n0.shape} cells at {n0.res} m, floor z {n0.floor_z:.2f}, blocked: "
                   + ", ".join(f"{k} {m.blocked.mean():.0%}" for k, m in nav.items()))
             for i, (c, g) in enumerate(zip(robots_cfg, goal_of)):
                 p = nav[c[0]].path(c[1:3], args.goal[g])
                 print(f"[fleet] {c[0]}_{i} path " + (f"{[(round(x, 1), round(y, 1)) for x, y in p]}" if p else "NONE, goes straight"))
                 paths[i] = p[1:] if p else paths[i]
+            np.savez(f"{args.log}_navmap.npz", lo=n0.lo, res=n0.res, floor_z=n0.floor_z, points=pts[::max(1, len(pts) // 200000)],
+                     **{f"blocked_{k}": m.blocked for k, m in nav.items()}, **{f"path_{i}": np.asarray(p) for i, p in enumerate(paths)})
         wp = [0] * len(robots_cfg)  # waypoint index per robot
     arrived, min_gap = [None] * len(runners), float("inf")
+    traj = open(f"{args.log}_traj.csv", "w", buffering=1)  # line-buffered: recordings kill the app
+    traj.write("t,robot,x,y,yaw,z\n")
     fleet_every = max(1, round(0.02 / scene_dt))  # replan at 50 Hz
 
 
@@ -164,6 +169,7 @@ def fleet_update() -> None:
         p, q = (np.asarray(v.numpy() if hasattr(v, "numpy") else v).reshape(-1) for v in (p, q))
         poses.append((float(p[0]), float(p[1]), yaw_from_wxyz(q[:4])))
         zs.append(round(float(p[2]), 2))  # base height, to spot falls
+        traj.write(f"{tick * scene_dt:.2f},{len(poses) - 1},{p[0]:.3f},{p[1]:.3f},{poses[-1][2]:.3f},{p[2]:.3f}\n")
     if not args.stop:  # next waypoint once within 0.5 m of the current one
         for i, q in enumerate(poses):
             if wp[i] < len(paths[i]) - 1 and math.dist(q[:2], paths[i][wp[i]]) < 0.5:

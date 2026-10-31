@@ -64,9 +64,21 @@ Upload this folder to `~/robot/isaac-sim/` first (Jupyter file browser), then:
    light (the robot rendered black) and a free camera (blurry floaters). The scene script now adds a dome light for
    `--scene` (verified: `dah1b.mp4`, robot lit, splat sharp from a photo spot), and level_scene.py picks the longest
    walk inside one photo's view and prints that camera as `--eye` and `--target` (3.6 m on delivery_area: its
-   tripod shots face the walls).
+   tripod shots face the walls). With `--scene` the planner also blocks cells with no collider floor under them (a
+   hole is a fall with no ground plane); on delivery_area that removed 1,300 m2 of void the old map called free, and
+   no real floor. Add `--log /robot/out/NAME` to keep NAME_navmap.npz and a 50 Hz NAME_traj.csv of every robot.
    ```bash
    /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --scene /robot/recon/da_world.usda --plan $ARGS --stream
+   ```
+   Three robots sharing one hand-off spot in the same scan (job mode, 2 s dwell each, then across the floor). Ran on
+   Colab: H1s arrived at 11.1 and 18.2 s, the Go2 at 22.2 s, closest 1.09 m, no falls in the trajectory
+   (`dafleet.mp4`; check any run with `python3 demos/traj_check.py /robot/out/dafleet_traj.csv`):
+   ```bash
+   /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --scene /robot/recon/da_world.usda \
+     --robot h1 -4.61 2.78 -139 0 0 0 --robot h1 -4.23 -0.19 154 0 0 0 --robot go2 -8.88 0.72 7 0 0 0 \
+     --stop 0 -6.65 1.01 2.0 --stop 0 -8.56 -1.76 0 --stop 1 -6.65 1.01 2.0 --stop 1 -9.20 3.20 0 \
+     --stop 2 -6.65 1.01 2.0 --stop 2 -4.42 1.30 0 --eye -0.45 1.81 1.47 --target -6.89 0.98 1.10 \
+     --log /robot/out/dafleet --stream
    ```
 
 5. VLA over a trained RL controller: GR00T N1.6 drives a G1 whole-body controller in Isaac Lab-Arena (`main` targets
