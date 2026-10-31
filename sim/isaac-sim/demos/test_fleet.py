@@ -92,3 +92,31 @@ for name, (st, gl, od) in layouts.items():
                 assert contacts == 0, (name, js, gap)
         ms, gap, ct, ar = np.array(rows).T
         print(f"{name:10} {str(avoid):6} {np.nanmean(ms):8.1f}    {gap.min():8.2f}   {ct.mean():12.0f}   {int(ar.sum())}/{4 * len(rows)}")
+
+# job dependency: A loads at the station for 3 s then leaves; B wants the same station and must wait until A
+# has gone, then dwells there itself. B never enters the station's 1 m while A holds it.
+from fleet import Jobs
+station = (0.0, 0.0)
+jobs = Jobs([[(-3.0, 0.0, 0), (*station, 3.0), (3.0, 2.0, 0)],    # A: start, load, drop-off
+             [(0.0, -3.0, 0), (*station, 1.0), (-3.0, -2.0, 0)]])  # B: start, fetch, drop-off
+poses = [[-3.0, 0.0, 0.0], [0.0, -3.0, math.pi / 2]]
+cmds = [np.zeros(3, np.float32)] * 2
+dt, a_left, b_in = 0.02, None, None
+for step in range(4000):
+    t = step * dt
+    goals = [jobs.goal(i, p, t) for i, p in enumerate(poses)]
+    cmds = [smooth(cmds[i], command(p, goals[i], [q[:2] for j, q in enumerate(poses) if j < i], 0.6,
+                                    [q[:2] for j, q in enumerate(poses) if j > i])) for i, p in enumerate(poses)]
+    for p, (vx, vy, wz) in zip(poses, cmds):
+        p[2] += wz * dt
+        p[0] += (vx * math.cos(p[2]) - vy * math.sin(p[2])) * dt
+        p[1] += (vx * math.sin(p[2]) + vy * math.cos(p[2])) * dt
+    if jobs.idx[0] == 2 and a_left is None:
+        a_left = t
+    if math.dist(poses[1][:2], station) < 1.0 and b_in is None:
+        b_in = t
+    if all(jobs.done(i) for i in range(2)):
+        break
+assert all(jobs.done(i) for i in range(2)), (jobs.idx, poses)
+assert a_left is not None and b_in > a_left, (a_left, b_in)
+print(f"job dependency ok: A left the station at {a_left:.1f} s, B entered at {b_in:.1f} s, all done at {t:.1f} s")

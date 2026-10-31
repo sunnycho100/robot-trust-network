@@ -82,3 +82,40 @@ def check_goals(goals, min_spacing=1.5):
 def yaw_from_wxyz(q):
     w, x, y, z = q
     return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+
+class Jobs:
+    """Routes of (x, y, dwell_s) per robot, with each waypoint a station that holds one robot at a time:
+    a robot claims its next station before leaving, and if another robot holds it, it waits where it is.
+    This is the job dependency, e.g. B fetches from the station only after A has loaded there and left.
+    ponytail: claims are taken in robot order each tick, no deadlock check (two robots wanting each other's
+    station wait forever); add a wait-for graph if routes ever cross like that."""
+
+    def __init__(self, routes, reach=0.35):
+        self.routes, self.reach = routes, reach
+        self.idx = [0] * len(routes)
+        self.since = [None] * len(routes)  # time robot i reached its current waypoint
+        self.owner = {}  # station (x, y) -> robot holding it
+        for i, r in enumerate(routes):
+            self.owner.setdefault(tuple(r[0][:2]), i)
+
+    def goal(self, i, pos, t):
+        """(x, y) robot i should walk to now; call every tick with its position and the sim time."""
+        r, k = self.routes[i], self.idx[i]
+        here = tuple(r[k][:2])
+        if self.owner.get(here) != i:  # still waiting for its first station
+            self.owner.setdefault(here, i)
+            return pos[:2] if self.owner[here] != i else here
+        if math.dist(pos[:2], here) < self.reach and self.since[i] is None:
+            self.since[i] = t
+        if self.since[i] is not None and t - self.since[i] >= r[k][2] and k + 1 < len(r):
+            nxt = tuple(r[k + 1][:2])
+            if self.owner.get(nxt, i) == i:
+                self.owner[nxt] = i
+                del self.owner[here]
+                self.idx[i], self.since[i] = k + 1, None
+                return nxt
+        return here
+
+    def done(self, i):
+        return self.idx[i] == len(self.routes[i]) - 1 and self.since[i] is not None
