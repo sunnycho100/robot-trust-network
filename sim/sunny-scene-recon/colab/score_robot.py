@@ -64,8 +64,9 @@ def find_floor(gt, z_max=None):
     return edges[np.argmax(hist)] + 0.005
 
 
-def score(recon, gt, lo, hi, band=(0.1, 1.8), radius=0.3, z_max=None):
-    """recon, gt: (N, 3) points in metres, Z up. lo, hi: XY corners of the region to score."""
+def score(recon, gt, lo, hi, band=(0.1, 1.8), radius=0.3, z_max=None, maps=False):
+    """recon, gt: (N, 3) points in metres, Z up. lo, hi: XY corners of the region to score.
+    maps: also return the grids (collider_audit.py)."""
     shape = tuple(np.ceil((np.asarray(hi) - lo) / CELL).astype(int))
     z_floor = find_floor(gt, z_max)
     gt_floor = floor_map(gt, lo, shape, z_floor, 0.05)
@@ -85,6 +86,8 @@ def score(recon, gt, lo, hi, band=(0.1, 1.8), radius=0.3, z_max=None):
     union = (gt_free | rc_free).sum()
     rc_occ_near = ndimage.binary_dilation(rc_occ, SQ)
     n_eval, n_floor, n_free = int(eval_cells.sum()), int(is_floor.sum()), int(gt_free.sum())
+    if maps:
+        return dict(z_floor=z_floor, gt_free=gt_free, rc_free=rc_free, gt_occ=gt_occ, rc_occ=rc_occ)
     return {
         "z_floor": float(z_floor), "cells_floor": n_floor, "cells_floor_scored": n_eval,
         "floor_err_median_m": float(np.median(np.abs(err))) if len(err) else None,
