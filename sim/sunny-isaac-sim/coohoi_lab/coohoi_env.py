@@ -60,7 +60,7 @@ def _humanoid(agent, effort):
     )
 
 
-def _box(size, density):
+def _box(size, density, color=(0.8, 0.55, 0.25), metallic=0.0):
     """CooHOI's box: create_box with AssetOptions(density=...); the other AssetOptions stay at Isaac Gym's defaults.
     unverified: those defaults (angular_damping 0.5, max_angular_velocity 64 rad/s) and the box friction (1.0)."""
     return RigidObjectCfg(
@@ -74,7 +74,7 @@ def _box(size, density):
             mass_props=sim_utils.MassCfg(density=density),
             collision_props=[sim_utils.UsdPhysicsCollisionCfg(), CONTACT],
             physics_material=FRICTION,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.55, 0.25)),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, metallic=metallic, roughness=0.35 if metallic else 0.5),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.6)),
     )
@@ -110,13 +110,35 @@ class CoohoiEnvCfg(DirectMARLEnvCfg):
     mode: str = "pair"
     box_scale: float = 1.0  # CooHOI draws it per env: [0.9, 1] for the pair, [0.8, 1] single; one value here
     layout_origin: tuple = (0.0, 0.0, 0.0)  # where the task layout sits inside each env (e.g. a spot in a scan)
+    plates: int = 0  # pair only, looks only: draw the box as this many strapped steel plates (same shape and physics)
+
+
+def dress_as_plates(num_envs, n, s):
+    """Hide each box's cube and draw n strapped steel plates filling exactly the same 2 x 0.5 x 0.5 m volume.
+    Visual prims only (no physics), children of the box body so they move with it. A thinner real plate was tried:
+    the trained policy fails on it (0% at 0.08 to 0.25 m thick, and on trestles), so the collider stays CooHOI's box."""
+    from pxr import Gf, UsdGeom
+    stage = sim_utils.get_current_stage()
+    L, W, H, gap = 2.0 * s, 0.5 * s, 0.5 * s, 0.004
+    t = (H - gap * (n - 1)) / n
+    for e in range(num_envs):
+        box = f"/World/envs/env_{e}/Box"
+        for prim in stage.GetPrimAtPath(box).GetChildren():
+            UsdGeom.Imageable(prim).MakeInvisible()
+        parts = [(f"plate{k}", (0.0, 0.0, -H / 2 + t / 2 + k * (t + gap)), (L, W, t)) for k in range(n)]
+        parts += [(f"strap{k}", (x, 0.0, 0.0), (0.04, W + 0.01, H + 0.01)) for k, x in enumerate((-0.6 * s, 0.6 * s))]
+        for name, pos, size in parts:
+            cube = UsdGeom.Cube.Define(stage, f"{box}/dress/{name}")
+            cube.AddTranslateOp().Set(Gf.Vec3d(*pos))
+            cube.AddScaleOp().Set(Gf.Vec3f(*[v / 2 for v in size]))  # a Cube spans -1..1
 
 
 def make_cfg(mode="pair", num_envs=16, box_scale=1.0, physics_dt=1 / 120, decimation=4, effort="gear",
-             scene_usd=None, origin=(0.0, 0.0, 0.0), seed=0):
+             scene_usd=None, origin=(0.0, 0.0, 0.0), seed=0, plates=0):
     cfg = CoohoiEnvCfg()
     agents = ["left", "right"] if mode == "pair" else ["single"]
     cfg.mode, cfg.possible_agents, cfg.box_scale, cfg.layout_origin, cfg.seed = mode, agents, box_scale, tuple(origin), seed
+    cfg.plates = plates if mode == "pair" else 0
     cfg.action_spaces, cfg.observation_spaces = {a: 28 for a in agents}, {a: 299 for a in agents}
     cfg.sim.dt, cfg.decimation, cfg.sim.render_interval = physics_dt, decimation, decimation
     cfg.scene.num_envs = num_envs
@@ -125,6 +147,8 @@ def make_cfg(mode="pair", num_envs=16, box_scale=1.0, physics_dt=1 / 120, decima
     s = box_scale
     if mode == "pair":  # create_box(2.0, 0.5, 0.5), density 50, then set_actor_scale(s)
         cfg.scene.box = _box((2.0 * s, 0.5 * s, 0.5 * s), 50.0)  # unverified: that set_actor_scale also scales mass
+        if cfg.plates:  # steel look; the box's material is bound stronger than descendants, so it also colours the plates
+            cfg.scene.box = _box((2.0 * s, 0.5 * s, 0.5 * s), 50.0, (0.50, 0.53, 0.56), 0.9)
     else:  # a 0.5 m cube scaled by s, density 0.8 * 50 / s^3, so always 5 kg
         cfg.scene.box = _box((0.5 * s,) * 3, 0.8 * 50.0 / s**3)
     if scene_usd:
@@ -136,6 +160,11 @@ def make_cfg(mode="pair", num_envs=16, box_scale=1.0, physics_dt=1 / 120, decima
 
 class CoohoiEnv(DirectMARLEnv):
     cfg: CoohoiEnvCfg
+
+    def _setup_scene(self):
+        super()._setup_scene()
+        if self.cfg.plates:
+            dress_as_plates(self.scene.num_envs, self.cfg.plates, self.cfg.box_scale)
 
     def __init__(self, cfg: CoohoiEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)

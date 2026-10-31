@@ -18,6 +18,8 @@ ap.add_argument("--checkpoint", help="default: TwoAgent.pth (pair) or SingleAgen
 ap.add_argument("--episodes", type=int, default=100)
 ap.add_argument("--num_envs", type=int, default=16)
 ap.add_argument("--box_scale", type=float, default=1.0)
+ap.add_argument("--plates", type=int, default=0, help="pair, looks only: draw the box as N strapped steel plates")
+ap.add_argument("--ground_color", type=float, nargs=3, metavar=("R", "G", "B"), help="tint the ground plane, e.g. 0.35 0.36 0.37 for concrete")
 ap.add_argument("--physics_dt", type=float, default=1 / 120, help="CooHOI: 1/60 with 2 substeps = 1/120")
 ap.add_argument("--decimation", type=int, default=4, help="physics steps per policy step (30 Hz policy)")
 ap.add_argument("--effort", choices=["gear", "unlimited", "usd"], default="gear", help="joint effort limit: MJCF gear, 1e9, or the USD's")
@@ -41,7 +43,9 @@ CAM_BACK, CAM_UP, LOOK_Z = 9.0, 3.5, 0.8  # as coohoi/record_coohoi.py: behind (
 
 def main():
     cfg = make_cfg(args.mode, args.num_envs, args.box_scale, args.physics_dt, args.decimation, args.effort,
-                   args.scene, args.origin, args.seed)
+                   args.scene, args.origin, args.seed, args.plates)
+    if args.ground_color and cfg.scene.ground:
+        cfg.scene.ground.spawn.color = tuple(args.ground_color)
     ckpt = args.checkpoint or os.path.join(coohoi_root(), "coohoi/data/models",
                                            "TwoAgent.pth" if args.mode == "pair" else "SingleAgent.pth")
     with launch_simulation(cfg, args):

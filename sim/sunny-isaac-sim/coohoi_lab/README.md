@@ -79,6 +79,7 @@ With these, the free rollout from Gym's recorded state drifts 1e-2 m in body pos
    ffmpeg -framerate 30 -i ~/workspace/coohoi_lab_pair/frame_%05d.png -c:v libx264 -pix_fmt yuv420p ~/workspace/coohoi_lab_pair.mp4
    ```
    In our scan later: add `--scene ~/robot/recon/da_world.usda --origin X Y Z` (the floor point to stand on).
+   Steel look: `--plates 8 --ground_color 0.26 0.27 0.28` draws the box as eight strapped steel plates on a concrete-gray floor. It changes the looks only, since the policy only knows CooHOI's 2 x 0.5 x 0.5 m box. A real thin plate failed every time: 0% at 8, 15 and 25 cm thick, and also when resting on trestles at the box's height.
 
 ## Reading the comparison
 
