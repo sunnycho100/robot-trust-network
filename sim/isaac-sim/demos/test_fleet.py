@@ -6,16 +6,18 @@ import numpy as np
 from fleet import assign, check_goals, command, priority, smooth, yaw_from_wxyz
 
 
-def simulate(starts, goals, order=None, vmax=0.6, dt=0.02, steps=3000, holonomic=(True,) * 4):
-    """Same ranking, command and smoothing as multi_robot_scene.py --goal."""
+def simulate(starts, goals, order=None, vmax=0.6, dt=0.02, steps=3000, holonomic=(True,) * 4, avoid=True, stats=False):
+    """Same ranking, command and smoothing as multi_robot_scene.py --goal. avoid=False: each robot ignores the
+    others (the baseline). stats=True adds makespan (s, None if someone never arrives) and contact steps
+    (pairs closer than 0.8 m, about two humanoid shoulder widths)."""
     order = order or assign([s[:2] for s in starts], goals)
     rank = priority(starts, [goals[g] for g in order])
     poses = [list(s) for s in starts]
     cmds = [np.zeros(3, np.float32) for _ in starts]
-    min_gap = np.inf
-    for _ in range(steps):
-        cmds = [smooth(cmds[i], command(p, goals[order[i]], [q[:2] for j, q in enumerate(poses) if rank[j] < rank[i]], vmax,
-                                        [q[:2] for j, q in enumerate(poses) if rank[j] > rank[i]], holonomic=holonomic[i]))
+    min_gap, makespan, contacts = np.inf, None, 0
+    for step in range(steps):
+        others = lambda i, hi: [q[:2] for j, q in enumerate(poses) if avoid and (rank[j] < rank[i]) == hi and j != i]
+        cmds = [smooth(cmds[i], command(p, goals[order[i]], others(i, True), vmax, others(i, False), holonomic=holonomic[i]))
                 for i, p in enumerate(poses)]
         for p, (vx, vy, wz) in zip(poses, cmds):
             p[2] += wz * dt
@@ -23,8 +25,11 @@ def simulate(starts, goals, order=None, vmax=0.6, dt=0.02, steps=3000, holonomic
             p[1] += (vx * math.sin(p[2]) + vy * math.cos(p[2])) * dt
         for i in range(len(poses)):
             for j in range(i):
-                min_gap = min(min_gap, math.dist(poses[i][:2], poses[j][:2]))
-    return order, poses, min_gap
+                d = math.dist(poses[i][:2], poses[j][:2])
+                min_gap, contacts = min(min_gap, d), contacts + (d < 0.8)
+        if makespan is None and all(math.dist(p[:2], goals[order[i]]) < 0.35 for i, p in enumerate(poses)):
+            makespan = (step + 1) * dt
+    return (order, poses, min_gap, makespan, contacts) if stats else (order, poses, min_gap)
 
 
 # longest trip first, ties by list order
@@ -68,3 +73,22 @@ try:
     raise SystemExit("check_goals missed close goals")
 except AssertionError:
     pass
+
+# baseline: avoidance off vs on, 5 jittered starts (0.3 m, 0.3 rad) per layout. Prints the table; asserts only
+# that avoidance never brings two robots within contact range.
+rng = np.random.default_rng(0)
+layouts = {"crossing": ([(0, 0, 0), (0, 4, 0), (4, 0, math.pi / 2), (4, 4, math.pi)], [(4, 4), (4, 0), (0, 4), (0, 0)], [0, 1, 2, 3]),
+           "converge": (starts, goals, None)}
+print("layout     avoid  makespan_s  min_gap_m  contact_steps  arrived")
+for name, (st, gl, od) in layouts.items():
+    for avoid in (False, True):
+        rows = []
+        for _ in range(5):
+            js = [(x + rng.uniform(-.3, .3), y + rng.uniform(-.3, .3), a + rng.uniform(-.3, .3)) for x, y, a in st]
+            order, poses, gap, ms, contacts = simulate(js, gl, order=od, avoid=avoid, stats=True)
+            arrived = sum(math.dist(p[:2], gl[order[i]]) < 0.35 for i, p in enumerate(poses))
+            rows.append((ms if ms is not None else float("nan"), gap, contacts, arrived))
+            if avoid:
+                assert contacts == 0, (name, js, gap)
+        ms, gap, ct, ar = np.array(rows).T
+        print(f"{name:10} {str(avoid):6} {np.nanmean(ms):8.1f}    {gap.min():8.2f}   {ct.mean():12.0f}   {int(ar.sum())}/{4 * len(rows)}")
