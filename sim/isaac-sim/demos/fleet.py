@@ -34,7 +34,9 @@ def command(pose, goal, higher, vmax, lower=(), wmax=0.8, reach=0.3, clearance=1
     `clearance` in front of it. While a higher-priority robot is that close, this one backs and sidesteps away
     from it (the walking policies take vy), with a bias to its right so two robots never mirror each other,
     even when parked at its goal. The top-priority robot never moves aside, so the fleet cannot all stall.
-    holonomic=False (H1, whose stock policy is likely trained forward only, unverified): no vy, no reversing."""
+    holonomic=False (H1): no vy, no reversing. Trained command ranges in the 6.2 assets' env yaml files:
+    H1 vx 0..1, vy 0, wz -1..1; Go2 and ANYmal -1..1 on all three; Spot vx -2..3, vy -1.5..1.5, wz -2..2.
+    The defaults here (vmax 0.6, vaway 0.4, wmax 0.8) sit inside all of them."""
     x, y, yaw = pose
     c, s = math.cos(yaw), math.sin(yaw)
     blocked, away = False, np.zeros(2)
