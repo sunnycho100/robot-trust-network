@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image
 from pxr import Gf, Sdf, Tf, Usd, UsdGeom, UsdLux, UsdShade, Vt
 
+import props
 import shots
 
 rec, out = Path(sys.argv[1]), Path(sys.argv[2])
@@ -149,6 +150,7 @@ changing = set(np.where(np.any(rgba_t != rgba_t[0], axis=(0, 2)))[0].tolist())
 moving = np.abs(xpos - xpos[0]).max(axis=(0, 2)) + np.abs(xquat - xquat[0]).max(axis=(0, 2)) > 1e-5
 body_prims = {}
 counts = dict(geoms=0, skipped=0)
+replaced = []
 for i in range(m.ngeom):
     rgba = geom_rgba(i, m.geom_rgba[i])
     if m.geom_group[i] >= 3 or (rgba[3] <= 0 and i not in changing):
@@ -158,6 +160,9 @@ for i in range(m.ngeom):
     if b not in body_prims:
         bp = UsdGeom.Xform.Define(stage, f'/World/Bodies/b{b}_' + Tf.MakeValidIdentifier(m.body(b).name or 'world'))
         body_prims[b] = bp
+    if m.body(b).name in props.REPLACED_BODIES or m.geom(i).name in props.REPLACED_GEOMS:
+        replaced.append((b, i))  # factory-object look authored below, same body and volume
+        continue
     path = str(body_prims[b].GetPath()) + f'/g{i}_' + Tf.MakeValidIdentifier(m.geom(i).name or 'geom')
     t, s = int(m.geom_type[i]), m.geom_size[i]  # int: mjtGeom == np.int32 is False inside `in`
     mat = m.geom_matid[i]
@@ -200,6 +205,13 @@ for i in range(m.ngeom):
     UsdShade.MaterialBindingAPI.Apply(prim).Bind(look)
     counts['geoms'] += 1
 
+looks = props.Looks(stage)
+for b in sorted({b for b, _ in replaced if b}):
+    props.author_payload(stage, str(body_prims[b].GetPath()), m.body(b).name, looks)
+for b, i in replaced:
+    if not b:
+        props.author_stand(stage, str(body_prims[b].GetPath()), m.geom(i).name, m.geom_pos[i], m.geom_size[i], looks)
+
 with Sdf.ChangeBlock():
     for b, bp in body_prims.items():
         tr, ori = bp.AddTranslateOp(), bp.AddOrientOp()
@@ -230,4 +242,4 @@ for n, x in enumerate((-10, -5, 0, 5, 10)):
 
 shots.author_camera(stage, xpos, list(P['body_names']), N)
 stage.GetRootLayer().Save()
-print(counts, 'bodies', len(body_prims), 'materials', len(mats), 'meshes', len(meshes), 'textures', len(tex_paths), 'frames', N)
+print(counts, 'replaced', len(replaced), 'bodies', len(body_prims), 'materials', len(mats), 'meshes', len(meshes), 'textures', len(tex_paths), 'frames', N)

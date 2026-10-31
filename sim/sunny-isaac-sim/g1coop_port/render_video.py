@@ -1,6 +1,7 @@
 """Render the animated factory USD with Isaac Sim's RTX renderer, shot by shot, to PNG frames.
 Usage (in the Isaac Sim 6.2 container):
   /isaac-sim/python.sh render_video.py /robot/g1coop/usd/factory.usd /robot/g1coop/frames [--mode PathTracing] [--every 30]
+  [--shots ThreeG1Close] [--span 0 6]
 Shots and captions come from shots.py. Frames are replayed from USD time samples (MuJoCo physics, RTX rendering).
 """
 import argparse
@@ -18,7 +19,8 @@ p.add_argument('--mode', default='RealTimePathTracing', help='RaytracedLighting 
 p.add_argument('--spp', type=int, default=32, help='samples per pixel per subframe (PathTracing)')
 p.add_argument('--subframes', type=int, default=4)
 p.add_argument('--every', type=int, default=1, help='render every Nth frame (previews)')
-p.add_argument('--shots', nargs='*', help='only these shot names')
+p.add_argument('--shots', nargs='*', default=shots.FILM, help='shot names, default the film')
+p.add_argument('--span', nargs=2, type=float, default=(0, 1e9), help='only sim seconds [A, B) of those shots (parallel chunks)')
 a = p.parse_args()
 W, H = 1280, 720
 os.makedirs(a.out, exist_ok=True)
@@ -86,14 +88,15 @@ for _ in range(60):  # materials and textures finish loading
     app.update()
 n, t0 = 0, time.time()
 for name, start, end, caption, _, focal in shots.SHOTS:
-    if a.shots and name not in a.shots:
+    if name not in a.shots:
         continue
     src = UsdGeom.Xformable(stage.GetPrimAtPath(f'/World/Cameras/{name}'))
     cam.GetFocalLengthAttr().Set(focal)
     cam.GetHorizontalApertureAttr().Set(20.955)
     cam.GetVerticalApertureAttr().Set(20.955 * 9 / 16)
     first = True
-    for f in range(start * shots.FPS, end * shots.FPS, a.every):
+    lo, hi = max(start, a.span[0]), min(end, a.span[1])
+    for f in range(round(lo * shots.FPS), round(hi * shots.FPS), a.every):
         tl.set_current_time(f / shots.FPS)
         cam_op.Set(src.ComputeLocalToWorldTransform(f))
         # a camera cut needs the denoiser history flushed; extra subframes do that
