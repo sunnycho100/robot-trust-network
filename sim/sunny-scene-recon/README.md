@@ -71,7 +71,7 @@ Splats win on looks and lose on geometry, so collisions come from the MVS mesh a
 | Ground truth | TSDF 2 cm (`colab/tsdf_mesh.py`) | 1.1 / 2.9 mm | 5% | 0.96 | 0.93 |
 | 3DGUT render | TSDF 2 cm | 201 / 287 mm | 92% | 0.00 | 0.93 |
 
-Poisson closes surfaces through unseen space and buries the open floor, so colliders from depth maps use TSDF. The 3DGUT splat (held-out PSNR 27.7) renders depth behind the true surfaces (rendered over true depth, median per view 1.04 to 4.2 with exact poses), so its depth cannot make a collider even through TSDF. Open3D 0.20's legacy TSDF returns empty meshes; pin 0.19.
+Poisson as configured in `eth3d_prep.py` (depth 10, 12% density trim, cluster filter) loses 94% of the floor cells, so nothing is left walkable; whether it trims the floor away or puts a lid over it is not checked yet. TSDF carves the space the cameras saw, so colliders from depth maps use TSDF. The 3DGUT splat (held-out PSNR 27.7) renders depth behind the true surfaces (rendered over true depth, median per view 1.04 to 4.2 with exact poses), so its depth cannot make a collider even through TSDF. Open3D 0.20's legacy TSDF returns empty meshes; pin 0.19.
 
 **Per-pixel depth** against ETH3D's laser depth maps (`colab/depth_check.py`): on the training photos, ours has 66% of laser pixels within 5 cm (median error 3.5 cm), and 49% (3.8 cm) on the held-out ones. vid2scene's rendered splat depth has 6% within 5 cm and a median error of 1.5 m even on the photos it was trained on, mostly placing surfaces behind the real ones.
 
