@@ -1,6 +1,7 @@
 """play.py with the viewer at a fixed eye (a real photo spot in a scan) instead of 9 m behind the box, which in a
 scanned room sits inside walls or splat floaters. Same arguments as play.py plus --eye X Y Z [--look X Y Z];
-without --look the camera stays at the eye and turns to follow the box.
+without --look the camera stays at the eye and turns to follow the box. --home X starts the humanoids at x = -X and
++X instead of CooHOI's -5 and +5, for floors without 11 m of free straight line.
   python play_scene.py --mode pair --episodes 4 --num_envs 1 --effort unlimited --scene ~/da/da_world.usda \
       --video ~/frames_da --eye 1.2 -6.3 1.6
 """
@@ -11,9 +12,14 @@ import sys
 ap = argparse.ArgumentParser(add_help=False)
 ap.add_argument("--eye", type=float, nargs=3, required=True)
 ap.add_argument("--look", type=float, nargs=3)
+ap.add_argument("--home", type=float)
 cam, rest = ap.parse_known_args()
 sys.argv = [sys.argv[0], *rest]
+import coohoi_env  # noqa: E402
 import play  # noqa: E402  parses the remaining arguments
+
+if cam.home:  # read by _humanoid (spawn) and _reset_idx (every reset)
+    coohoi_env.HOME_X.update(left=-cam.home, right=cam.home)
 
 _launch = play.launch_simulation
 
