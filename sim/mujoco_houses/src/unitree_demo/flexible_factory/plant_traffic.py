@@ -6,6 +6,8 @@ uses measured mobile and humanoid positions. No robot pose replay is used.
 import mujoco
 import numpy as np
 
+YIELD_TIMEOUT_S=10.  # sim seconds of continuous yielding before a courier reports it is stuck
+
 MISSIONS=[
     ('QC_PRESENTATION',[(3.65,3.05)]),
     ('RECEIVING_TO_CNC',[(-11.,1.0),(-6.3,1.0),(-6.3,2.95)]),
@@ -32,6 +34,7 @@ class Delivery:
         self.slip_factor=1.7 if jackal else (3. if husky else 1.)
         self.arrived=False; self.yielding=False; self.distance=0.; self.last=None
         self.started=None; self.completed_at=None; self.hold_count=0
+        self.yield_since=None; self.yield_reported=False
 
     def update(self,model,data,others,humanoids,events):
         pos=data.xpos[self.body,:2]; rot=data.xmat[self.body].reshape(3,3)
@@ -62,6 +65,14 @@ class Delivery:
             local=rot[:2,:2].T@(position-pos)
             if 0<local[0]<self.length+length+.22 and abs(local[1])<self.width+width+.10:
                 v=0.; self.yielding=True; self.hold_count+=1; break
+        if not self.yielding:
+            self.yield_since=None; self.yield_reported=False
+        elif self.yield_since is None:
+            self.yield_since=float(data.time)
+        elif not self.yield_reported and data.time-self.yield_since>=YIELD_TIMEOUT_S:
+            # Keep holding; the event lets a supervisor reroute or clear the path.
+            events.append(dict(t=float(data.time),robot=self.name,mission=self.mission,event='YIELD_TIMEOUT',waited_s=float(data.time)-self.yield_since))
+            self.yield_reported=True
         left=(v-self.half_track*w*self.slip_factor)/self.radius
         right=(v+self.half_track*w*self.slip_factor)/self.radius
         commands=np.array([left,left,right,right] if len(self.acts)==4 else [left,right])
