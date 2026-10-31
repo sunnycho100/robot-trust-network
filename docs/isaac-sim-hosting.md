@@ -39,7 +39,7 @@ If the quota isn't approved by about 8 pm, switch to the Vast fallback in sectio
 1. Marketplace subscription page > **Continue to Configuration** > **Continue to Launch** > launch through EC2.
 2. Instance type: **g6e.2xlarge**.
 3. Key pair: create one (`isaac-key`), download the `.pem`, then `chmod 400 isaac-key.pem`.
-4. Storage: **200 GB gp3** (the Isaac Sim image, caches and assets add up fast).
+4. Storage: **512 GB gp3**, the AMI's minimum. It bills even while the machine is stopped (about $41 a month), so terminate it if nobody will use it for a while.
 5. Security group: allow **only your own IP** (`<your-ip>/32`), never `0.0.0.0/0`, because the streaming ports have no password or encryption:
    - 22 TCP (SSH)
    - 8443 TCP (Amazon DCV)
@@ -48,6 +48,8 @@ If the quota isn't approved by about 8 pm, switch to the Vast fallback in sectio
 7. Launch, then copy the **public IP**.
 
 Teammates on other networks need their own IP added to the security group, or one person shares their screen.
+
+From a laptop with the AWS CLI (profile `robot`), `bash sim/isaac_aws.sh launch` does all of the above with the key `isaac-key`, the group `isaac-sim` and the DCV license role `isaac-sim-dcv`, and schedules an auto-stop 3 hours after every boot. The same script has `ip`, `stop`, `start` and `terminate`.
 
 ## 4. See the screen
 
@@ -168,7 +170,7 @@ aws ec2 stop-instances --instance-ids <instance-id>
 aws ec2 describe-instances --instance-ids <instance-id> --query "Reservations[].Instances[].State.Name"
 ```
 
-It should say `stopped`. A stopped machine still costs a few dollars a month for its disk. To delete it entirely, use `terminate-instances` instead (this deletes the disk too).
+It should say `stopped`. A stopped machine still costs about $41 a month for its 512 GB disk. To delete it entirely, use `terminate-instances` instead (this deletes the disk too).
 
 **Budget alarm.** In the console, open **Billing > Budgets > Create budget > Cost budget**, monthly, amount **$50**, with email alerts at 50% and 80% of actual spend and 100% of forecasted spend.
 
