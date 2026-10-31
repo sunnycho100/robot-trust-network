@@ -1,0 +1,52 @@
+#!/bin/zsh
+# Publish only the current factory implementation on the existing task branch.
+set -eu
+project="${0:A:h:h}"
+repository="$(git -C "$project" rev-parse --show-toplevel)"
+cd "$repository"
+branch=g1_cooperative_task
+if [[ "$(git branch --show-current)" != "$branch" ]]; then
+  print -u2 "Expected branch $branch. Switch branches before running this script."
+  exit 1
+fi
+if ! git diff --cached --quiet; then
+  print -u2 'The index already has staged changes. Review/commit them before running this script.'
+  exit 1
+fi
+base=sim/mujoco_houses
+files=(
+  "$base/.gitignore"
+  "$base/README.md"
+  "$base/requirements.txt"
+  "$base/requirements-factory.txt"
+  "$base/assets/factory_graphics"
+  "$base/factory/ASSET_POLICY.md"
+  "$base/factory/DENSE_LAYOUT.md"
+  "$base/factory/FMS_IMPLEMENTATION.md"
+  "$base/factory/LOGISTICS_SCENARIOS.md"
+  "$base/factory/README.md"
+  "$base/factory/SETUP.md"
+  "$base/factory/flexible_factory.json"
+  "$base/factory/metal_parts.json"
+  "$base/factory/realistic_layout.json"
+  "$base/src/unitree_demo/coop_lift.py"
+  "$base/src/unitree_demo/factory_executor.py"
+  "$base/src/unitree_demo/factory_planner.py"
+  "$base/src/unitree_demo/factory_scene.py"
+  "$base/src/unitree_demo/g1_logistics.py"
+  "$base/src/unitree_demo/industrial_showcase.py"
+  "$base/src/unitree_demo/flexible_factory"
+  "$base/tests/test_flexible_factory.py"
+  "$base/tests/test_factory_scene_labels.py"
+  "$base/scripts/push_factory_update"
+)
+git add -- "${files[@]}" ":(exclude)$base/src/unitree_demo/flexible_factory/flex_probe.py"
+git diff --cached --check
+git diff --cached --stat
+if ! git diff --cached --quiet; then
+  git commit -m 'feat: add coordinated manufacturing factory simulation'
+fi
+# Preserve the existing remote commit and any unrelated local tracked edits.
+git pull --rebase --autostash origin "$branch"
+git push origin "$branch"
+print "Published $branch at $(git rev-parse --short HEAD)"
