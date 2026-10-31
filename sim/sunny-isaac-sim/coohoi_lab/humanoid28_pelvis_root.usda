@@ -1,0 +1,110 @@
+#usda 1.0
+(
+    defaultPrim = "humanoid"
+    doc = """Isaac Lab's Humanoid28 with the articulation root on the pelvis (CooHOI's MJCF root) instead of the top Xform,
+    so PhysX makes the pelvis link 0 and root state writes land on it. Usage: COOHOI_HUMANOID_USD=<this file>.
+    The sublayer is a local copy of the asset (humanoid_28.usd plus Props/instanceable_meshes.usd, downloaded from
+    the Isaac Sim 6.2 asset root .../Isaac/IsaacLab/Robots/Classic/Humanoid28/) so it resolves offline.
+    Masses: the asset authors none, so PhysX used density 1000 (35.7 kg in all). These are Isaac Gym's runtime masses
+    for CooHOI's amp_humanoid.xml (per-geom MJCF densities, 48.9 kg). PhysX scales the collider inertia to them, which
+    is exact for every body except the torso (sphere 1794 plus clavicles 1100 kg/m3)."""
+    subLayers = [@/home/ubuntu/h28/humanoid_28.usd@]
+)
+
+over "humanoid" (
+    delete apiSchemas = ["PhysicsArticulationRootAPI"]
+)
+{
+    over "pelvis" (
+        prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysicsMassAPI"]
+    )
+    {
+        float physics:mass = 9.9956
+    }
+    over "torso" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 12.0115
+    }
+    over "head" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 3.8823
+    }
+    over "right_upper_arm" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 1.4993
+    }
+    over "right_lower_arm" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 0.9997
+    }
+    over "right_hand" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 0.5
+    }
+    over "left_upper_arm" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 1.4993
+    }
+    over "left_lower_arm" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 0.9997
+    }
+    over "left_hand" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 0.5
+    }
+    over "right_thigh" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 4.5023
+    }
+    over "right_shin" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 2.9998
+    }
+    over "right_foot" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 0.9997
+    }
+    over "left_thigh" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 4.5023
+    }
+    over "left_shin" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 2.9998
+    }
+    over "left_foot" (prepend apiSchemas = ["PhysicsMassAPI"])
+    {
+        float physics:mass = 0.9997
+    }
+    # The knees and elbows are PhysicsRevoluteJoints whose drive is authored as PhysicsDriveAPI:X, which a revolute
+    # joint ignores (its drive instance is "angular"), so they had no drive at all. Gains per degree (USD units);
+    # Isaac Lab overwrites them with the MJCF values at runtime.
+    over "joints"
+    {
+        over "left_knee" (prepend apiSchemas = ["PhysicsDriveAPI:angular"])
+        {
+            uniform token drive:angular:physics:type = "force"
+            float drive:angular:physics:stiffness = 8.7266
+            float drive:angular:physics:damping = 0.87266
+        }
+        over "right_knee" (prepend apiSchemas = ["PhysicsDriveAPI:angular"])
+        {
+            uniform token drive:angular:physics:type = "force"
+            float drive:angular:physics:stiffness = 8.7266
+            float drive:angular:physics:damping = 0.87266
+        }
+        over "left_elbow" (prepend apiSchemas = ["PhysicsDriveAPI:angular"])
+        {
+            uniform token drive:angular:physics:type = "force"
+            float drive:angular:physics:stiffness = 5.23599
+            float drive:angular:physics:damping = 0.523599
+        }
+        over "right_elbow" (prepend apiSchemas = ["PhysicsDriveAPI:angular"])
+        {
+            uniform token drive:angular:physics:type = "force"
+            float drive:angular:physics:stiffness = 5.23599
+            float drive:angular:physics:damping = 0.523599
+        }
+    }
+}
