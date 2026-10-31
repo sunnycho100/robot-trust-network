@@ -76,7 +76,8 @@ The broker can read every message. Signing proves who sent it and that nothing c
   - houses: two RoboCasa kitchens in separate windows talking over MQTT
   - coop carry: two full-body G1s carrying one box (`run_coop_carry`)
 - `sim/sunny-scene-recon/`: a scanned site turned into a MuJoCo scene, checked against a laser scan, with a G1 walk test and an Isaac Sim export
-- `sim/sunny-isaac-sim/`: Isaac Sim 6.2 on a cloud GPU (a Brev L40S, or a Colab L4 through pip): recorded robot demos, several robots sharing a job inside a reconstructed real loading area, and the CooHOI two-humanoid carry
+- `sim/sunny-isaac-sim/`: Isaac Sim 6.2 on a cloud GPU (a Brev L40S, or a Colab L4 through pip): recorded robot demos, several robots sharing a job inside a reconstructed real loading area, the CooHOI two-humanoid carry in Isaac Lab, the CarDA car-door line, and Seohee's factory rendered in Isaac Sim
+- Every simulation so far, with results and caveats: [`docs/simulations.md`](docs/simulations.md)
 - `sim/sam-g1-manipulation/`: a G1 with grippers, picking actions from camera images (experimental)
 - `sim/vla_sim.py`: a vision-language model driving a Panda arm or Go2 through skill calls
 
