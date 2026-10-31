@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "elements",
+  "type": "object",
+  "required": [
+    "taxonomy",
+    "cycles"
+  ],
+  "properties": {
+    "taxonomy": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "therblig",
+          "description"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 4
+    },
+    "cycles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "station",
+          "cycle_id",
+          "duration_s",
+          "elements"
+        ],
+        "properties": {
+          "elements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "code",
+                "start_s",
+                "end_s",
+                "duration_s",
+                "source",
+                "confidence",
+                "hands",
+                "travel_m",
+                "trunk_flex_deg_mean",
+                "subgoal"
+              ],
+              "properties": {},
+              "additionalProperties": true
+            },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

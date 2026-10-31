@@ -1,0 +1,107 @@
+{
+ "criteria": [],
+ "tasks": [
+  {
+   "station": "WS30",
+   "code": "GET_TOOL",
+   "element_key": "WS30:GET_TOOL",
+   "scores": {},
+   "total": 0.0,
+   "category": "cobot_screwdriving",
+   "rationale": "fixture",
+   "allocation": "robot",
+   "requirements": {
+    "part_mass_kg": 0.005
+   }
+  },
+  {
+   "station": "WS30",
+   "code": "REACH_FASTENER",
+   "element_key": "WS30:REACH_FASTENER",
+   "scores": {},
+   "total": 0.0,
+   "category": "cobot_screwdriving",
+   "rationale": "fixture",
+   "allocation": "robot",
+   "requirements": {
+    "n_fasteners": 4,
+    "precision_mm": 0.5,
+    "conveyor_tracking": true
+   }
+  },
+  {
+   "station": "WS30",
+   "code": "FASTEN",
+   "element_key": "WS30:FASTEN",
+   "scores": {},
+   "total": 0.0,
+   "category": "cobot_screwdriving",
+   "rationale": "fixture",
+   "allocation": "robot",
+   "requirements": {
+    "n_fasteners": 4,
+    "precision_mm": 0.5,
+    "conveyor_tracking": true
+   }
+  },
+  {
+   "station": "WS30",
+   "code": "GET_PART",
+   "element_key": "WS30:GET_PART",
+   "scores": {},
+   "total": 0.0,
+   "category": "cobot_pick_place",
+   "rationale": "fixture",
+   "allocation": "human_robot",
+   "requirements": {
+    "part_mass_kg": 0.9
+   }
+  },
+  {
+   "station": "WS30",
+   "code": "INSERT",
+   "element_key": "WS30:INSERT",
+   "scores": {},
+   "total": 0.0,
+   "category": "dexterous_manual",
+   "rationale": "fixture",
+   "allocation": "human",
+   "requirements": {}
+  },
+  {
+   "station": "WS30",
+   "code": "UNOBS",
+   "element_key": "WS30:UNOBS",
+   "scores": {},
+   "total": 0.0,
+   "category": "unobserved",
+   "rationale": "fixture",
+   "allocation": "human",
+   "requirements": {}
+  },
+  {
+   "station": "WS20",
+   "code": "GET_PART",
+   "element_key": "WS20:GET_PART",
+   "scores": {},
+   "total": 0.0,
+   "category": "cobot_pick_place",
+   "rationale": "fixture",
+   "allocation": "human_robot",
+   "requirements": {
+    "part_mass_kg": 1.2
+   }
+  },
+  {
+   "station": "WS20",
+   "code": "INSERT",
+   "element_key": "WS20:INSERT",
+   "scores": {},
+   "total": 0.0,
+   "category": "dexterous_manual",
+   "rationale": "fixture",
+   "allocation": "human",
+   "requirements": {}
+  }
+ ]
+}

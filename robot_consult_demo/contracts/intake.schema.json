@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "intake",
+  "type": "object",
+  "required": [
+    "customer",
+    "line",
+    "stations",
+    "default_part"
+  ],
+  "properties": {
+    "customer": {
+      "type": "object",
+      "required": [
+        "name",
+        "product"
+      ]
+    },
+    "line": {
+      "type": "object",
+      "required": [
+        "takt_s",
+        "paced"
+      ],
+      "properties": {
+        "takt_s": {
+          "type": "number"
+        },
+        "paced": {
+          "type": "boolean"
+        },
+        "shifts_per_day": {
+          "type": "number"
+        },
+        "hours_per_shift": {
+          "type": "number"
+        },
+        "days_per_year": {
+          "type": "number"
+        },
+        "hourly_wage_usd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "cameras": {
+      "type": "object",
+      "properties": {
+        "calibration": {
+          "enum": [
+            "file",
+            "checkerboard",
+            "reference_length",
+            "none"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "reference_lengths_m": {
+          "type": "array"
+        }
+      }
+    },
+    "default_part": {
+      "type": "object",
+      "required": [
+        "name",
+        "mass_kg",
+        "precision_mm",
+        "basis"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "mass_kg": {
+          "type": "number"
+        },
+        "precision_mm": {
+          "type": "number"
+        },
+        "basis": {
+          "type": "string"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "flexible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "stations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "conveyor",
+          "sop",
+          "parts"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "conveyor": {
+            "type": "object",
+            "required": [
+              "present"
+            ],
+            "properties": {
+              "present": {
+                "type": "boolean"
+              },
+              "polygon_xy": {
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "direction_xy": {
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            }
+          },
+          "sop": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "step",
+                "text"
+              ],
+              "properties": {
+                "step": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "activities": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "mass_kg",
+                "precision_mm",
+                "basis"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "mass_kg": {
+                  "type": "number"
+                },
+                "precision_mm": {
+                  "type": "number"
+                },
+                "basis": {
+                  "type": "string"
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "flexible": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "default_part": {
+            "type": "object",
+            "required": [
+              "name",
+              "mass_kg",
+              "precision_mm",
+              "basis"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "mass_kg": {
+                "type": "number"
+              },
+              "precision_mm": {
+                "type": "number"
+              },
+              "basis": {
+                "type": "string"
+              },
+              "keywords": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "flexible": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

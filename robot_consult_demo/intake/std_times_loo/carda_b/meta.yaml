@@ -1,0 +1,4 @@
+config: config/carda_b.yaml
+out_root: out_b
+intake: intake/carda_b.yaml
+cycles: 3

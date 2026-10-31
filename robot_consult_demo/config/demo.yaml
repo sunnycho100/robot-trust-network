@@ -1,0 +1,48 @@
+# Single source of truth for paths and modelling assumptions.
+# Every number that is an assumption (not measured from data) lives here, with a note on where it comes from.
+
+data:
+  root: data/carda            # symlink to the extracted CarDA subset A (ws10, ws20, ws30)
+  calibration_xlsx: data/carda/cameras_calibration.xlsx
+  stations: [WS10, WS20, WS30]
+  video_fps: 30
+  mocap_fps: 60
+
+out_root: out
+
+line:
+  takt_s: 240                 # CarDA Zenodo record: "each task cycle lasts approximately 4 minutes"
+  paced: true                 # moving conveyor, rigid pacing (ISyE 510 lecture06: line pacing)
+  shifts_per_day: 2           # assumption for ROI (editable)
+  hours_per_shift: 8
+  days_per_year: 250
+
+time_study:
+  performance_rating: 1.00    # rating factor applied to observed times (normal time = observed * rating)
+  allowance_pfd: 0.15         # personal, fatigue, delay allowance; standard time = normal time * (1 + allowance)
+  confidence: 0.95
+  accuracy: 0.05              # +/-5% for required-sample-size check
+
+ergonomics:
+  # EAWS-style trunk flexion bands (degrees from vertical)
+  bent_forward_deg: [20, 60]
+  strongly_bent_deg: 60
+  elbow_at_shoulder: true
+
+economics:
+  currency: USD
+  discount_rate: 0.08
+  horizon_years: 5
+  labor_fringe_multiplier: 1.30   # wages -> fully loaded labor cost (assumption)
+  # hourly wage is filled by stage 7 from BLS OEWS with a citation
+
+robots:
+  safety_margin_payload: 0.25     # require payload >= (tool + part) * (1 + margin)
+  reach_margin: 0.90              # usable reach = nominal reach * margin
+
+observation:
+  # CarDA subset-A clips are cropped (~40-60 s) while a full station cycle is ~240 s.
+  # Unobserved work is modelled as a manual, non-automatable block so the optimiser cannot
+  # "save" work it never saw. Change only if full-cycle footage becomes available.
+  full_cycle_s: 240
+  unobserved_policy: manual_block

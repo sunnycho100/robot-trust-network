@@ -1,0 +1,146 @@
+{
+ "source": "https://github.com/ros-industrial/motoman (kinetic-devel) motoman_hc10_support/urdf/hc10dtp_b00_macro.xacro",
+ "license": "BSD-3-Clause / Apache-2.0 (repository badges)",
+ "joints": [
+  {
+   "name": "joint_1_s",
+   "xyz": [
+    0,
+    0,
+    0.275
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -210,
+   "upper_deg": 210,
+   "velocity_deg_s": 130
+  },
+  {
+   "name": "joint_2_l",
+   "xyz": [
+    0,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "lower_deg": -180,
+   "upper_deg": 180,
+   "velocity_deg_s": 130
+  },
+  {
+   "name": "joint_3_u",
+   "xyz": [
+    0,
+    0,
+    0.7
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    -1,
+    0
+   ],
+   "lower_deg": -290,
+   "upper_deg": 290,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "joint_4_r",
+   "xyz": [
+    0.5,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    -1,
+    0,
+    0
+   ],
+   "lower_deg": -210,
+   "upper_deg": 210,
+   "velocity_deg_s": 180
+  },
+  {
+   "name": "joint_5_b",
+   "xyz": [
+    0,
+    0.162,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    -1,
+    0
+   ],
+   "lower_deg": -180,
+   "upper_deg": 180,
+   "velocity_deg_s": 250
+  },
+  {
+   "name": "joint_6_t",
+   "xyz": [
+    0,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    -1,
+    0,
+    0
+   ],
+   "lower_deg": -210,
+   "upper_deg": 210,
+   "velocity_deg_s": 250
+  }
+ ],
+ "flange_xyz": [
+  0.17,
+  0,
+  0
+ ],
+ "tool_axis": [
+  1,
+  0,
+  0
+ ],
+ "datasheet_reach_mm": 1370,
+ "model": "HC10DTP",
+ "convention": "URDF: joint origin xyz/rpy (fixed-axis roll-pitch-yaw) relative to parent link; axis in child frame",
+ "note": "Kinematics only (joint origins, axes, position and velocity limits) transcribed from the public vendor ROS description; meshes replaced by capsule collision primitives in models/build.py"
+}

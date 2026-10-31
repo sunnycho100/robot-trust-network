@@ -1,0 +1,142 @@
+{
+ "source": "https://github.com/TechmanRobotInc/tm2_ros2 (humble) tm_description/xacro/macro.tm12s-nominal.urdf.xacro",
+ "license": "BSD-3-Clause (TECHMAN ROBOT INC.)",
+ "joints": [
+  {
+   "name": "joint_1",
+   "xyz": [
+    0,
+    0,
+    0.1652
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 130
+  },
+  {
+   "name": "joint_2",
+   "xyz": [
+    0,
+    0,
+    0
+   ],
+   "rpy": [
+    -1.570796,
+    -1.570796,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 130
+  },
+  {
+   "name": "joint_3",
+   "xyz": [
+    0.6361,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -162,
+   "upper_deg": 162,
+   "velocity_deg_s": 210
+  },
+  {
+   "name": "joint_4",
+   "xyz": [
+    0.5324,
+    0,
+    -0.1818
+   ],
+   "rpy": [
+    0,
+    0,
+    1.570796
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 225
+  },
+  {
+   "name": "joint_5",
+   "xyz": [
+    0,
+    -0.1315,
+    0
+   ],
+   "rpy": [
+    1.570796,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 225
+  },
+  {
+   "name": "joint_6",
+   "xyz": [
+    0,
+    -0.13495,
+    0
+   ],
+   "rpy": [
+    1.570796,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 450
+  }
+ ],
+ "flange_xyz": [
+  0,
+  0,
+  0
+ ],
+ "tool_axis": "auto",
+ "datasheet_reach_mm": 1300,
+ "model": "TM12S",
+ "convention": "URDF: joint origin xyz/rpy (fixed-axis roll-pitch-yaw) relative to parent link; axis in child frame",
+ "note": "Kinematics only (joint origins, axes, position and velocity limits) transcribed from the public vendor ROS description; meshes replaced by capsule collision primitives in models/build.py"
+}

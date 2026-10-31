@@ -1,0 +1,142 @@
+{
+ "source": "https://github.com/DoosanRobotics/doosan-robot2 (humble) dsr_description2/xacro/macro.m0617.white.xacro",
+ "license": "BSD-3-Clause (repository)",
+ "joints": [
+  {
+   "name": "joint_1",
+   "xyz": [
+    0,
+    0,
+    0.153
+   ],
+   "rpy": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 100
+  },
+  {
+   "name": "joint_2",
+   "xyz": [
+    0,
+    0.0345,
+    0
+   ],
+   "rpy": [
+    0,
+    -1.571,
+    -1.571
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 100
+  },
+  {
+   "name": "joint_3",
+   "xyz": [
+    0.845,
+    0,
+    0
+   ],
+   "rpy": [
+    0,
+    0,
+    1.571
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -165,
+   "upper_deg": 165,
+   "velocity_deg_s": 150
+  },
+  {
+   "name": "joint_4",
+   "xyz": [
+    0,
+    -0.734,
+    0
+   ],
+   "rpy": [
+    1.571,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 225
+  },
+  {
+   "name": "joint_5",
+   "xyz": [
+    0,
+    0,
+    0
+   ],
+   "rpy": [
+    -1.571,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 225
+  },
+  {
+   "name": "joint_6",
+   "xyz": [
+    0,
+    -0.121,
+    0
+   ],
+   "rpy": [
+    1.571,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "lower_deg": -360,
+   "upper_deg": 360,
+   "velocity_deg_s": 225
+  }
+ ],
+ "flange_xyz": [
+  0,
+  0,
+  0
+ ],
+ "tool_axis": "auto",
+ "datasheet_reach_mm": 1700,
+ "model": "M0617",
+ "convention": "URDF: joint origin xyz/rpy (fixed-axis roll-pitch-yaw) relative to parent link; axis in child frame",
+ "note": "Kinematics only (joint origins, axes, position and velocity limits) transcribed from the public vendor ROS description; meshes replaced by capsule collision primitives in models/build.py"
+}

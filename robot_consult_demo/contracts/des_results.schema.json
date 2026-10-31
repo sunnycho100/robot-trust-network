@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "des_results",
+  "type": "object",
+  "required": [
+    "replications",
+    "scenarios",
+    "validation"
+  ],
+  "properties": {
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "throughput_per_hr",
+          "ci95_half_width",
+          "utilization",
+          "takt_violations_pct"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 3
+    }
+  },
+  "additionalProperties": true
+}

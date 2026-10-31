@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "roi",
+  "type": "object",
+  "required": [
+    "assumptions",
+    "scenarios",
+    "sensitivity"
+  ],
+  "properties": {
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "unit",
+          "source"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 5
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "capex_usd",
+          "annual_savings_usd",
+          "payback_years",
+          "npv_usd"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "sensitivity": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "param",
+          "low",
+          "high",
+          "npv_low",
+          "npv_high"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 3
+    }
+  },
+  "additionalProperties": true
+}

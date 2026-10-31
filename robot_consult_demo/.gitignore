@@ -1,0 +1,10 @@
+/.venv
+/data
+/out/
+/out_*/
+/models/*.task
+*.log
+MUJOCO_LOG.TXT
+__pycache__/
+.DS_Store
+/docs/*.pdf
