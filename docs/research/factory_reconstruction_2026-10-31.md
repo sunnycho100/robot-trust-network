@@ -68,7 +68,7 @@ All return HTTP 200 under `https://omniverse-content-production.s3-us-west-2.ama
 - `/Isaac/Environments/Office/office.usd`
 - `/Isaac/Environments/Simple_Room/simple_room.usd`
 
-`sim/isaac-sim/demos/h1_warehouse.sh` already loads `full_warehouse.usd` on our cloud box.
+`sim/sunny-isaac-sim/demos/h1_warehouse.sh` already loads `full_warehouse.usd` on our cloud box.
 
 ### Capture: Replicator APIs
 

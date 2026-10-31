@@ -38,7 +38,7 @@
 - Critic reviews in `docs/research/critic_*.md` (reconstruction plan, coordination, 3DGRUT result, scoring, TSDF collider, floor clip, hybrid walk). Each one's fixes were applied before the runs.
 
 ## 4. Tomorrow's first commands on Brev
-In order, from `sim/isaac-sim/RUNSHEET.md`:
+In order, from `sim/sunny-isaac-sim/RUNSHEET.md`:
 1. CooHOI with both humanoids: `bash run_coohoi.sh 20`
 2. Multi-robot scene, streamed: `multi_robot_scene.py --stream`, then the fleet modes (goals, `--plan`, the station job, the aisle layout)
 3. Warehouse walkthrough capture

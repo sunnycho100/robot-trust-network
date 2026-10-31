@@ -1,5 +1,5 @@
 #!/bin/bash
-# Isaac Sim on AWS (see docs/isaac-sim-hosting.md). Usage: bash sim/isaac_aws.sh launch|ip|stop|start|terminate [instance type]
+# Isaac Sim on AWS (see docs/isaac-sim-hosting.md). Usage: bash sim/sunny-isaac-sim/isaac_aws.sh launch|ip|stop|start|terminate [instance type]
 # launch starts billing (about $2.24/hr for g6e.2xlarge). Every boot schedules an auto-stop 3 hours later.
 set -eu
 export AWS_PROFILE=${AWS_PROFILE:-robot} AWS_REGION=us-east-2
