@@ -4,6 +4,8 @@
 
 Isaac Sim 6.2 in Docker on a Brev Crusoe L40S (VM Mode w/ Jupyter), seen in Chrome through NVIDIA's web viewer. Commands follow the 6.2 docs ([Brev guide](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/installation/install_advanced_cloud_setup_brev.html), [web viewer](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/installation/manual_livestream_clients.html)) and `tools/docker` at tag v6.2.0.
 
+The same stack on an AWS g6e: [`AWS.md`](AWS.md).
+
 ## Order of operations
 
 1. In the Brev console, expose the ports below, then click **Open Notebook** and open a **Terminal**.

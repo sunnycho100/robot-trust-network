@@ -3,7 +3,7 @@
 set -u
 SECS=${1:-20}
 export ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0
-C="docker compose -p isim -f $HOME/IsaacSim/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
+C="docker compose -p isim -f ${REPO:-$HOME/IsaacSim}/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
 R=$HOME/robot/recordings
 P=standalone_examples/api/isaacsim.robot.policy.examples
 DEMOS=(

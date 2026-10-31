@@ -3,7 +3,7 @@
 # Usage (on the VM): bash run_render.sh NAME [render_video.py options, e.g. --every 30 --mode PathTracing]
 set -u
 export ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0
-C="docker compose -p isim -f $HOME/IsaacSim/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
+C="docker compose -p isim -f ${REPO:-$HOME/IsaacSim}/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
 name=$1; shift
 R=$HOME/robot/g1coop; O=$R/$name
 rm -rf "$O"

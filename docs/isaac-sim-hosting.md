@@ -49,7 +49,7 @@ If the quota isn't approved by about 8 pm, switch to the Vast fallback in sectio
 
 Teammates on other networks need their own IP added to the security group, or one person shares their screen.
 
-From a laptop with the AWS CLI (profile `robot`), `bash sim/sunny-isaac-sim/isaac_aws.sh launch` does all of the above with the key `isaac-key`, the group `isaac-sim` and the DCV license role `isaac-sim-dcv`, and schedules an auto-stop 3 hours after every boot. The same script has `ip`, `stop`, `start` and `terminate`.
+From a laptop with the AWS CLI (profile `robot`), `bash sim/sunny-isaac-sim/isaac_aws.sh launch` does all of the above with the key `isaac-key`, the group `isaac-sim` and the DCV license role `isaac-sim-dcv`, and schedules an auto-stop 3 hours after every boot. The same script has `ip`, `open`, `sync`, `ssh`, `stop`, `start` and `terminate`. To run the Brev stack (container and web viewer, Isaac Lab with CooHOI, the factory render) on it, follow [`sim/sunny-isaac-sim/AWS.md`](../sim/sunny-isaac-sim/AWS.md).
 
 ## 4. See the screen
 

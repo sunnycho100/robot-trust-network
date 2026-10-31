@@ -2,7 +2,7 @@
 # Extra takes: 60 s palletizing, the H1 in our scanned floor (room center), the H1 in the NuRec wormhole scan. Usage (on the VM): bash record_more.sh
 set -u
 export ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0
-C="docker compose -p isim -f $HOME/IsaacSim/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
+C="docker compose -p isim -f ${REPO:-$HOME/IsaacSim}/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
 R=$HOME/robot/recordings; S=/robot/scenes/floor4_static3
 rec() {  # name seconds script args...
   name=$1; secs=$2; shift 2

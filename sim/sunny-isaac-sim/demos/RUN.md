@@ -33,7 +33,7 @@ The streaming app that `isaac_up.sh` starts holds the WebRTC ports, so stop it a
 
 ```bash
 export ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0 ISAACSIM_HOST=$(curl -4 -s ifconfig.me)
-C="docker compose -p isim -f $HOME/IsaacSim/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
+C="docker compose -p isim -f ${REPO:-$HOME/IsaacSim}/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
 $C stop isaac-sim
 $C run --rm --entrypoint bash isaac-sim
 ```
