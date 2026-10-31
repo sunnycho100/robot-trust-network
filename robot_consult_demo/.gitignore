@@ -8,3 +8,4 @@ MUJOCO_LOG.TXT
 __pycache__/
 .DS_Store
 /docs/*.pdf
+/models/pose_calib/*.joblib

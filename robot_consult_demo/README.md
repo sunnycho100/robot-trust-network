@@ -12,6 +12,7 @@ bash scripts/fetch_carda.sh                # CarDA subset A, about 5 GB (.svo st
 ```
 
 MediaPipe pose weights are downloaded into `models/` on first use.
+The learned element classifiers (`models/pose_calib/*.joblib`) are not in git. Rebuild them with `python scripts/train_element_clf.py --variant learned` and `--variant learned_qmap` after a full run; without them s2 falls back to its rule-based element evidence.
 
 ## Run
 

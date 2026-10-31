@@ -1,6 +1,6 @@
 # robot-trust-network
 
-Three pipelines live here. One turns a real site into a simulation, so we can check that a robot can do the job there before anyone buys it. The other is a trust layer, so robots from different owners can work together safely.
+Three pipelines live here. The first turns a real site into a simulation, so we can check that a robot can do the job there before anyone buys it. The second is a trust layer, so robots from different owners can work together safely. The third starts from video of a line that already runs with people and ends with which robots to buy for it.
 
 ## Pipeline 1: site to simulation
 
