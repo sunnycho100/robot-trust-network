@@ -1,5 +1,9 @@
 # Unitree G1 / Go1 in MuJoCo
 
+The current 20-robot factory scene, cooperative carrying, two-arm panel handling,
+Spot walking and recording commands are documented in
+[Factory setup](factory/SETUP.md) and [Factory scene](factory/DENSE_LAYOUT.md).
+
 Run from `sim/mujoco_houses/`. Signing and the trust policy come from `network/`.
 
 | demo | script |

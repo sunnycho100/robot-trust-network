@@ -104,23 +104,38 @@ def build_model(cfg: G1Config, assisted_grasp: bool = False) -> mujoco.MjModel:
 
 
 class RawVideoWriter:
-    def __init__(self, path: Path, width: int, height: int, fps: int) -> None:
+    def __init__(self, path: Path, width: int, height: int, fps: int,
+                 total_frames: int | None = None) -> None:
+        from tqdm import tqdm
+
+        self.fps = fps
+        self.frames = 0
         path.parent.mkdir(parents=True, exist_ok=True)
         self.process = subprocess.Popen([
             "ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
             "-s", f"{width}x{height}", "-r", str(fps), "-i", "-",
             "-an", "-vcodec", "libx264", "-pix_fmt", "yuv420p", str(path),
         ], stdin=subprocess.PIPE)
+        self.progress = tqdm(total=total_frames, desc="Recording video", unit="frame",
+                             dynamic_ncols=True, mininterval=0.5)
 
     def write(self, frame: np.ndarray) -> None:
         assert self.process.stdin is not None
         self.process.stdin.write(frame.tobytes())
+        self.frames += 1
+        self.progress.set_postfix(video=f"{self.frames / self.fps:.1f}s", refresh=False)
+        self.progress.update(1)
 
     def close(self) -> None:
-        if self.process.stdin is not None:
-            self.process.stdin.close()
-        if self.process.wait() != 0:
-            raise RuntimeError("ffmpeg failed while writing the cooperative carry video")
+        self.progress.set_description("Finalizing MP4")
+        try:
+            if self.process.stdin is not None:
+                self.process.stdin.close()
+            if self.process.wait() != 0:
+                raise RuntimeError("ffmpeg failed while writing the video")
+            self.progress.set_description("Video saved")
+        finally:
+            self.progress.close()
 
 
 def run(args) -> None:
@@ -137,10 +152,13 @@ def run(args) -> None:
     mujoco.mj_forward(model, data)
 
     fps = 30
+    steps = int(args.duration / cfg.simulation_dt)
+    render_every = max(1, round(1 / (fps * cfg.simulation_dt)))
     renderer = writer = None
     if args.video:
         renderer = mujoco.Renderer(model, height=720, width=960)
-        writer = RawVideoWriter(args.video, 960, 720, fps)
+        writer = RawVideoWriter(args.video, 960, 720, fps,
+                                total_frames=(steps + render_every - 1) // render_every)
     viewer = None
     if not args.headless:
         from mujoco import viewer as mj_viewer
@@ -150,8 +168,6 @@ def run(args) -> None:
 
     leader_command = np.array([args.squeeze_speed, 0.0, 0.0], dtype=np.float32)
     follower_command = np.array([args.squeeze_speed, 0.0, 0.0], dtype=np.float32)
-    steps = int(args.duration / cfg.simulation_dt)
-    render_every = max(1, round(1 / (fps * cfg.simulation_dt)))
     wall_start = time.monotonic()
     try:
         for step in range(steps):
