@@ -32,6 +32,7 @@ parser.add_argument("--goal", nargs=2, type=float, action="append", metavar=("X"
 parser.add_argument("--stop", nargs=4, type=float, action="append", metavar=("ROBOT", "X", "Y", "DWELL"))
 parser.add_argument("--plan", action="store_true", help="with --goal: A* paths around the scene's obstacles")
 parser.add_argument("--eye", nargs=3, type=float, metavar=("X", "Y", "Z"), help="camera position; default southwest of the robots")
+parser.add_argument("--target", nargs=3, type=float, metavar=("X", "Y", "Z"), help="camera look-at; default the robots' centre at 0.3 m")
 parser.add_argument("--device", type=str, choices=["cpu", "cuda"], default="cuda")
 parser.add_argument("--stream", action="store_true", help="stream over WebRTC to the web viewer (inside the container)")
 args, sys.argv[1:] = parser.parse_known_args()
@@ -74,6 +75,9 @@ SPAWN_Z = {"h1": 1.05, "go2": 0.5, "anymal": 0.7}  # from the stock examples; Sp
 stage = stage_utils.get_current_stage(backend="usd")
 scene = args.scene and os.path.abspath(args.scene) or get_assets_root_path() + "/Isaac/Environments/Simple_Warehouse/full_warehouse.usd"
 stage_utils.add_reference_to_stage(scene, "/World/Scene")
+if args.scene:  # a splat is self-lit; without a light the robots render black
+    from pxr import UsdLux
+    UsdLux.DomeLight.Define(stage, "/World/DomeLight").CreateIntensityAttr(1000.0)
 # unverified for local scenes: they need collision at the floor; h1_in_scene.py shows how to add a ground plane
 stage_utils.define_prim("/World/PhysicsScene", "PhysicsScene")
 SimulationManager.set_physics_sim_device(args.device)
@@ -106,7 +110,7 @@ cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
 span = max(max(xs) - min(xs), max(ys) - min(ys), 4.0)
 # eye at 0.5 span stays below the warehouse lights, which hid robots at 0.9
 ViewportManager.set_camera_view(ViewportManager.get_camera(), eye=args.eye or [cx - 1.2 * span, cy - 1.2 * span, 0.5 * span],
-                                target=[cx, cy, 0.3])
+                                target=args.target or [cx, cy, 0.3])
 
 tick, first_step, reset_needed, policy_failed = 0, True, False, False
 FLEET = bool(args.goal or args.stop)

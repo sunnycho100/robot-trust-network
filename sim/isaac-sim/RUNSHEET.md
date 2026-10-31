@@ -49,7 +49,8 @@ Upload this folder to `~/robot/isaac-sim/` first (Jupyter file browser), then:
 
 4. Robots in OUR reconstruction, with its own collider and no ground plane. Use the PatchMatch TSDF collider:
    copy `walk_pm_world.usda` and `walk_pm_collider.usdz` into one folder (the splat-depth colliders,
-   `walk_world.usda` and `walk_tsdf_world.usda`, have a floor 15 to 20 cm off). The wrapper references the usdz by
+   `walk_world.usda` and `walk_tsdf_world.usda`, have no usable floor: on the TSDF one an H1 and a Go2 fell
+   straight through at spawn, 83% of the map blocked). The wrapper references the usdz by
    relative path and undoes the exporter's normalizing transform, so the stage is in the warehouse frame (metres,
    Z up). Starts and goals are in `grep ARGS walk_pm.log` (unverified until tonight's walk_pm run ends):
    ```bash
@@ -57,8 +58,13 @@ Upload this folder to `~/robot/isaac-sim/` first (Jupyter file browser), then:
    ```
    Same for the REAL ETH3D delivery_area (3DGUT looks, PatchMatch collider): copy `da_world.usda` and
    `da_full_hybrid.usdz` together; `sim/sunny-scene-recon/colab/level_scene.py` levelled the floor to z = 0 and
-   picked the start, goal and camera (`grep ARGS da_h1.log`). For a new capture, run level_scene.py on its collider
-   mesh, its `images.txt` and its usdz first (3dgrut venv).
+   picked the start, goal and camera (`grep ARGS dah1c.log`). For a new capture, run level_scene.py on its collider
+   mesh, its `images.txt` and its usdz first (3dgrut venv). Ran on Colab: the H1 walked the 7-waypoint A* path
+   (about 11 m) to the goal in 17.6 s with no fall (`docs/evidence/overnight/fleet/dah1.mp4`). That first run had no
+   light (the robot rendered black) and a free camera (blurry floaters). The scene script now adds a dome light for
+   `--scene` (verified: `dah1b.mp4`, robot lit, splat sharp from a photo spot), and level_scene.py picks the longest
+   walk inside one photo's view and prints that camera as `--eye` and `--target` (3.6 m on delivery_area: its
+   tripod shots face the walls).
    ```bash
    /isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --scene /robot/recon/da_world.usda --plan $ARGS --stream
    ```
