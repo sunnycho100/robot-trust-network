@@ -74,3 +74,5 @@ Gated Hugging Face files (the NuRec dataset) without a token on the VM: download
 CooHOI (two humanoids carrying a box, Isaac Gym) has its own setup in [`coohoi/RUN.md`](coohoi/RUN.md). Each humanoid of a pair lives in its own Isaac Gym env and a camera renders only its own env, so the recorder films both envs from the same pose and merges them by depth (unverified on the VM).
 
 Colab recipes from the overnight run (Isaac Sim on a Colab L4, 3DGRUT, PatchMatch colliders, MAPPO): [`colab/README.md`](colab/README.md).
+
+More folders: [`coohoi_lab/`](coohoi_lab/README.md) (CooHOI's trained carry in Isaac Lab), `carda/` (the CarDA door line, kinematic replay), `g1coop_port/` (Seohee's MuJoCo factory rendered in Isaac Sim), [`film/`](film/README.md) (demo films). All of them, with results: [`docs/simulations.md`](../../docs/simulations.md).
