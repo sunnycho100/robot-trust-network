@@ -1,0 +1,40 @@
+{
+  "name": "HIGH-MIX METAL PARTS",
+  "sections": {
+    "receiving": {"label":"RECEIVING / RAW STOCK", "center":[-4.8,3.8], "color":[0.25,0.45,0.65,1]},
+    "sheet": {"label":"SHEET HANDLING", "center":[0,-2.5], "color":[0.7,0.5,0.15,1]},
+    "cnc": {"label":"MACHINING", "center":[-3,1.0], "color":[0.2,0.45,0.5,1]},
+    "deburr": {"label":"DEBURR / CLEANING", "center":[-1.3,4.7], "color":[0.25,0.5,0.45,1]},
+    "assembly": {"label":"ASSEMBLY / LARGE MODULES", "center":[3.7,-1.5], "color":[0.35,0.4,0.65,1]},
+    "qc": {"label":"QUALITY / REWORK", "center":[0,3.5], "color":[0.4,0.3,0.6,1]},
+    "packaging": {"label":"PACKAGING / PALLETIZING", "center":[3.5,3.7], "color":[0.5,0.4,0.25,1]},
+    "shipping": {"label":"SHIPPING", "center":[5.4,5.2], "color":[0.25,0.5,0.3,1]}
+  },
+  "buffers": {
+    "RECEIVING": {"capacity":24,"position":[-4.8,4.9,0.52]},
+    "CNC_INPUT": {"capacity":3,"position":[-3.65,1.5,0.52]},
+    "CNC_OUTPUT": {"capacity":3,"position":[-2.35,1.5,0.52]},
+    "DEBURR_INPUT": {"capacity":3,"position":[-1.5,4.3,0.52]},
+    "DEBURR_OUTPUT": {"capacity":3,"position":[-1.0,4.3,0.52]},
+    "ASSEMBLY_INPUT": {"capacity":4,"position":[1.0,1.8,0.52]},
+    "ASSEMBLY_OUTPUT": {"capacity":3,"position":[2.1,1.8,0.52]},
+    "QC_INPUT": {"capacity":4,"position":[-0.35,3.05,0.247]},
+    "REWORK": {"capacity":2,"position":[0.35,4.3,0.52]},
+    "PACKAGING_INPUT": {"capacity":5,"position":[2.7,3.15,0.52]},
+    "FINISHED": {"capacity":12,"position":[4.8,3.5,0.52]},
+    "SHIPPING": {"capacity":24,"position":[5.4,5.2,0.52]},
+    "SHEET_STOCK": {"capacity":2,"position":[0,-2,1.235]},
+    "MACHINE_STAGING": {"capacity":2,"position":[0,-1.2,1.1]},
+    "ASSEMBLY_LARGE_OUTPUT": {"capacity":2,"position":[3.7,-1,1.235]},
+    "FINAL_STAGING": {"capacity":2,"position":[3.7,0.5,1.1]}
+  },
+  "routes": {
+    "A":["CNC","DEBURR","ASSEMBLY","QC","PACKAGING","SHIPPING"],
+    "B":["CNC","QC","PACKAGING","SHIPPING"],
+    "C":["ASSEMBLY","QC","PACKAGING","SHIPPING"],
+    "D":["COOPERATIVE_ASSEMBLY_TRANSPORT","FINAL_INSPECTION","SHIPPING"]
+  },
+  "qc_failure_modulus":10,
+  "pallet_capacity":12,
+  "priorities":{"RECOVERY":0,"BLOCKED":1,"STARVED":2,"REWORK":3,"URGENT":4,"WIP":5,"FINISHED":6,"EMPTY":7}
+}

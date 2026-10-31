@@ -1,0 +1,3 @@
+-r requirements.txt
+# Validated MjSpec/light API used by the populated factory scene.
+mujoco==3.17.0

@@ -1,0 +1,6 @@
+{"type":"metal_parts", "sections":["storage","cnc","assembly","inspection","packaging","shipping"], "robots":[
+{"name":"amr1","model":"husky_a200","position":[-4,-3,0],"task":"material_transport"},
+{"name":"amr2","model":"husky_a200","position":[0,-3,0],"task":"shipping_transport"},
+{"name":"cnc","model":"ur5e","position":[-3,0,0.8],"task":"machine_tending"},
+{"name":"assembly","model":"panda","position":[0,0,0.8],"task":"assembly_inspection"},
+{"name":"packaging","model":"ur10e","position":[3,0,0.8],"task":"palletizing"}], "grasp_mode":"proximity_constraint"}

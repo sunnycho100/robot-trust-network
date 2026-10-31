@@ -5,3 +5,6 @@ MUJOCO_LOG.TXT
 third_party/go1_policy.onnx
 # Exported by scripts/setup_robocasa_houses; mesh paths point into the local robocasa env.
 assets/houses/
+# Local recordings, diagnostics, and machine-specific experimental exports.
+outputs/
+assets/mobile_ur5e.xml

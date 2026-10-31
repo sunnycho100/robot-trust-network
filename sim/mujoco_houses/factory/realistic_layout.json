@@ -1,0 +1,37 @@
+{
+  "name":"FLEXIBLE METALWORKS — 24 x 14 m operating footprint",
+  "cases":[
+    ["sofa","sofa_side",2.0,[-0.5,4.0,0]],
+    ["crate","bottom_crate",5.0,[-9.0,-3.0,0]],
+    ["frame","team_fixture",3.0,[4.0,-3.0,0]]
+  ],
+  "carry_profiles":{
+    "sofa_side":{"goal":[0.90,0.0],"center":[0.98,0.06],"speed":0.08,"lowering_rate":0.025},
+    "bottom_crate":{"goal":[0.0,1.0],"center":[0.0,1.0],"speed":0.10,"lowering_rate":0.025,"formation_tracking":true},
+    "team_fixture":{"goal":[0.0,2.0],"center":[0.0,1.70],"speed":0.14,"lowering_rate":0.04}
+  },
+  "courier_starts":[[4.0,-0.4],[-11.0,3.7],[0.0,-1.7],[2.9,3.2],[-10.0,1.9],[10.0,-0.1]],
+  "courier_models":["turtlebot3_waffle","turtlebot3_waffle","clearpath_jackal","clearpath_jackal","husky_a200","husky_a200"],
+  "initial_part_names":["supply_part","return_part",null,null,null,null],
+  "quadrupeds":[
+    {"name":"spot_inspection","position":[-1.0,-0.9],"yaw":0.0,"walk_distance":1.5},
+    {"name":"spot_quality","position":[6.5,5.65],"yaw":-1.5707963268,"walk_distance":1.5}
+  ],
+  "courier_goals":[[3.65,3.05],[-6.0,3.7]],
+  "panda_position":[4.0,3.5,0.5],
+  "table_position":[4.9,4.1,0.71],
+  "table_size":[0.6,0.4,0.04],
+  "drop_target":[4.35,3.8,0.78],
+  "minimum_lift_z":0.8,
+  "sections":{
+    "receiving":{"label":"RECEIVING / RAW MATERIAL", "center":[-10.5,4.5]},
+    "sheet":{"label":"SHEET STOCK / PRESS", "center":[-9,-2.1]},
+    "cnc":{"label":"CNC MACHINING", "center":[-5.5,4.6]},
+    "deburr":{"label":"DEBURR / CLEAN", "center":[-5.0,-3.5]},
+    "flex":{"label":"FLEX / QC SUPPORT", "center":[-0.5,4.4]},
+    "assembly":{"label":"ASSEMBLY", "center":[3.6,-3.8]},
+    "qc":{"label":"QUALITY / REWORK", "center":[4,4.2]},
+    "packaging":{"label":"PACKAGING / PALLETS", "center":[9,4.3]},
+    "shipping":{"label":"SHIPPING / FINISHED GOODS", "center":[11.5,-3.5]}
+  }
+}

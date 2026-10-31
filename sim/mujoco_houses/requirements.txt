@@ -1,6 +1,8 @@
 mujoco>=3.3
 numpy>=1.26
 torch
+tqdm>=4.66
+pillow>=9
 pyyaml
 onnxruntime
 pygame
