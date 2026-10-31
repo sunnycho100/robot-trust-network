@@ -62,6 +62,17 @@ Splats win on looks and lose on geometry, so collisions come from the MVS mesh a
 
 **NVIDIA 3DGRUT (3DGUT, MCMC, 1M Gaussians, 30k steps)** on the DSLR photos at 2069 px with ETH3D's poses, every 8th photo held out, 48 min on a Colab L4: PSNR 23.0, SSIM 0.89, LPIPS 0.36. Its depth (`colab/grut_points.py`, multi-view consistency like ours) scores 0.07 / 0.16 as points and 0.06 / 0.15 as a mesh, against 0.78 / 0.88 for PatchMatch on the same poses. The fused points sit a median 12 cm from the scan, so it is spread error, not an offset. Same verdict: 3DGRUT gives the Isaac Sim USDZ, PatchMatch gives the collider (`colab/grut_collider.py` puts both in one frame).
 
+**Synthetic warehouse, scored the way a robot needs it** (`colab/score_robot.py`, NVIDIA's full warehouse rendered along a 240-frame walkthrough by `isaac-sim/demos/capture_walkthrough.py`, 5 cm grid, ground truth from the training frames' depth). Free IoU is walkable floor that the collider also leaves walkable:
+
+| Depth source | Mesher | Floor error median / p95 | Floor holes | Free IoU | Obstacle recall |
+|---|---|---|---|---|---|
+| Ground truth | none (points) | 0.0 / 0.1 mm | 0% | 1.00 | 1.00 |
+| Ground truth | Poisson (`eth3d_prep.py`) | 2.7 / 186 mm | 94% | 0.00 | 0.96 |
+| Ground truth | TSDF 2 cm (`colab/tsdf_mesh.py`) | 1.1 / 2.9 mm | 5% | 0.96 | 0.93 |
+| 3DGUT render | TSDF 2 cm | 201 / 287 mm | 92% | 0.00 | 0.93 |
+
+Poisson closes surfaces through unseen space and buries the open floor, so colliders from depth maps use TSDF. The 3DGUT splat (held-out PSNR 27.7) renders depth behind the true surfaces (rendered over true depth, median per view 1.04 to 4.2 with exact poses), so its depth cannot make a collider even through TSDF. Open3D 0.20's legacy TSDF returns empty meshes; pin 0.19.
+
 **Per-pixel depth** against ETH3D's laser depth maps (`colab/depth_check.py`): on the training photos, ours has 66% of laser pixels within 5 cm (median error 3.5 cm), and 49% (3.8 cm) on the held-out ones. vid2scene's rendered splat depth has 6% within 5 cm and a median error of 1.5 m even on the photos it was trained on, mostly placing surfaces behind the real ones.
 
 **Collision checks** (`check_collisions.py`), outdoor path on `delivery_area`: heightfield vs mesh ground 0.9 cm (95th percentile). Against the laser scan's own ground, where the camera saw the ground (278 m2): median 0.25 cm, 95th percentile 1.0 cm. Ground the mesh filled in (40 m2): median 0.4 cm, 95th percentile 64 cm, 5 m2 off by over 20 cm. Under the roof, where the laser has no ground either, our heightfield sits on the ceiling in about 100 m2, which these scores leave out.
