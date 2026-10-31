@@ -62,14 +62,14 @@ Splats win on looks and lose on geometry, so collisions come from the MVS mesh a
 
 **NVIDIA 3DGRUT (3DGUT, MCMC, 1M Gaussians, 30k steps)** on the DSLR photos at 2069 px with ETH3D's poses, every 8th photo held out, 48 min on a Colab L4: PSNR 23.0, SSIM 0.89, LPIPS 0.36. Its depth (`colab/grut_points.py`, multi-view consistency like ours) scores 0.07 / 0.16 as points and 0.06 / 0.15 as a mesh, against 0.78 / 0.88 for PatchMatch on the same poses. The fused points sit a median 12 cm from the scan, so it is spread error, not an offset. Same verdict: 3DGRUT gives the Isaac Sim USDZ, PatchMatch gives the collider (`colab/grut_collider.py` puts both in one frame).
 
-**Synthetic warehouse, scored the way a robot needs it** (`colab/score_robot.py`, NVIDIA's full warehouse rendered along a 240-frame walkthrough by `isaac-sim/demos/capture_walkthrough.py`, 5 cm grid, ground truth from the training frames' depth). Free IoU is walkable floor that the collider also leaves walkable:
+**Synthetic warehouse, scored the way a robot needs it** (`colab/score_robot.py`, NVIDIA's full warehouse rendered along a 240-frame walkthrough by `isaac-sim/demos/capture_walkthrough.py`, 5 cm grid, ground truth from the training frames' depth). Free IoU is walkable floor that the collider also leaves walkable; false free is blocked ground the collider leaves open (collision danger). The TSDF ignores depth beyond 12 m, which adds some holes:
 
-| Depth source | Mesher | Floor error median / p95 | Floor holes | Free IoU | Obstacle recall |
-|---|---|---|---|---|---|
-| Ground truth | none (points) | 0.0 / 0.1 mm | 0% | 1.00 | 1.00 |
-| Ground truth | Poisson (`eth3d_prep.py`) | 2.7 / 186 mm | 94% | 0.00 | 0.96 |
-| Ground truth | TSDF 2 cm (`colab/tsdf_mesh.py`) | 1.1 / 2.9 mm | 5% | 0.96 | 0.93 |
-| 3DGUT render | TSDF 2 cm | 201 / 287 mm | 92% | 0.00 | 0.93 |
+| Depth source | Mesher | Floor error median / p95 | Floor holes | Free IoU | False free | Obstacle recall |
+|---|---|---|---|---|---|---|
+| Ground truth | none (points) | 0.0 / 0.1 mm | 0% | 1.00 | 0.000 | 1.00 |
+| Ground truth | Poisson (`eth3d_prep.py`) | 2.7 / 186 mm | 94% | 0.00 | 0.000 | 0.96 |
+| Ground truth | TSDF 2 cm (`colab/tsdf_mesh.py`) | 1.1 / 2.9 mm | 5% | 0.96 | 0.001 | 0.93 |
+| 3DGUT render | TSDF 2 cm | 201 / 287 mm | 92% | 0.00 | 0.000 | 0.93 |
 
 Poisson as configured in `eth3d_prep.py` (depth 10, 12% density trim, cluster filter) loses 94% of the floor cells, so nothing is left walkable; whether it trims the floor away or puts a lid over it is not checked yet. TSDF carves the space the cameras saw, so colliders from depth maps use TSDF. The 3DGUT splat (held-out PSNR 27.7) renders depth behind the true surfaces (rendered over true depth, median per view 1.04 to 4.2 with exact poses), so its depth cannot make a collider even through TSDF. Open3D 0.20's legacy TSDF returns empty meshes; pin 0.19.
 
