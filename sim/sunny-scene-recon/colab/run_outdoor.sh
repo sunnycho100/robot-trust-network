@@ -30,7 +30,7 @@ if not m.has_vertex_colors():
 o3d.io.write_triangle_mesh("$F/mesh.ply", m)
 EOF
 python $CODE/build_scene.py $F --outdoor --crop-height 2.2
-python $CODE/check_collisions.py $F/mujoco
+python $CODE/check_collisions.py $F/mujoco /content/eth3d/delivery_area/dslr_scan_eval/scan_alignment.mlp
 python $CODE/walk_in_scene.py $F/mujoco --episodes 20 --video $W/walk_outdoor.mp4
 python $CODE/export_scene.py $F/mujoco --coohoi-humanoid /content/coohoi/amp_humanoid.xml
 python $CODE/colab/render_preview.py $F/mujoco /content/delivery_outdoor.jpg

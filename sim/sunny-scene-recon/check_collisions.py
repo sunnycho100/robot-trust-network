@@ -122,7 +122,9 @@ def main():
             laser = np.asarray(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(laser)).voxel_down_sample(0.02).points)  # 6 per 5 cm cell
             # the same height band as the mesh (crop_height), around a rough floor from the laser alone (5th percentile
             # per 1 m cell, 3x3 median): under a roof the cloth climbs to the ceiling where the scanner missed the
-            # floor, and a glossy floor mirrors the ceiling below the ground
+            # floor, and a glossy floor mirrors the ceiling below the ground. Where the scanner saw no floor for
+            # meters, a cell's low point is the ceiling itself; over crop_height above the lowest floor within 3 m,
+            # it takes that floor instead, so the ceiling falls out of the band and the cell goes unscored.
             lo1 = laser[:, :2].min(0)
             ij1 = np.floor((laser[:, :2] - lo1)).astype(int)
             low = np.full(ij1.max(0) + 1, np.nan)
@@ -131,7 +133,11 @@ def main():
             low[cells1[:, 0], cells1[:, 1]] = laser[order[start + (n * 0.05).astype(int)], 2]
             with warnings.catch_warnings():  # cells with no laser at all stay empty
                 warnings.simplefilter("ignore", RuntimeWarning)
+                # before the median, since one pillar is enough. ponytail: one cell of mirror points (none in ETH3D's
+                # cleaned scans) would drag its 7 x 7 m down; then drop points facing away from the scanner instead
+                floor = ndimage.generic_filter(low, np.nanmin, size=7, mode="nearest")
                 low = ndimage.generic_filter(low, np.nanmedian, size=3, mode="nearest")
+            low = np.where(low - floor > info["crop_height"], floor, low)
             dz = laser[:, 2] - low[ij1[:, 0], ij1[:, 1]]
             laser = laser[(dz > -1.5) & (dz < info["crop_height"])]  # the mirror sits at -4.6 m here; steps down survive
             from build_scene import ground_heightfield  # the laser's own ground, by the same cloth filter
@@ -148,11 +154,21 @@ def main():
                         "over_5cm_m2": round(float((e > 0.05).sum() * cell ** 2), 1),
                         "over_20cm_m2": round(float((e > 0.20).sum() * cell ** 2), 1)}
             scanned = ~np.isnan(seen).ravel()
+            # every scanned cell against the laser's rough floor, laser ground or not: a heightfield on the ceiling
+            # where the laser has no ground goes unscored above, and the mesh check shares the mesh
+            rr, cc = np.divmod(np.arange(h.size), h.shape[1])
+            k = np.floor(lo + np.stack([cc, rr], axis=1) * cell - lo1).astype(int)
+            inside = (k >= 0).all(1) & (k < low.shape).all(1)
+            off = np.zeros(h.size, dtype=bool)
+            off[inside] = np.abs(h.ravel()[inside] - low[k[inside, 0], k[inside, 1]]) > 0.5
             report["ground_vs_laser"] = {
                 "scanned ground": score(h, scanned & (count >= 3)),  # ground both our scan and the laser saw
                 "filled ground": score(h, ~scanned & (count >= 3)),  # holes we filled, under boxes: the robot walks there too
                 "flat floor at z = 0, scanned ground": score(np.zeros_like(h), scanned & (count >= 3)),  # what the heightfield adds
-                "scanned ground without laser ground_m2": round(float((scanned & (count < 3)).sum() * cell ** 2), 1)}
+                "scanned ground without laser ground_m2": round(float((scanned & (count < 3)).sum() * cell ** 2), 1),
+                "scanned ground over 0.5 m off the laser floor_m2": {
+                    "with laser ground": round(float((scanned & (count >= 3) & off).sum() * cell ** 2), 1),
+                    "without": round(float((scanned & (count < 3) & off).sum() * cell ** 2), 1)}}
             for k, v in report["ground_vs_laser"].items():
                 print(f"heightfield vs laser scan ground, {k}: {v}")
 

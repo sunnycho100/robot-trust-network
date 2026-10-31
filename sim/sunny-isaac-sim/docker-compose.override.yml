@@ -1,0 +1,6 @@
+# Mounts $HOME/robot (our demos and scenes) at /robot in Isaac Sim, read-write. Usage: isaac_up.sh passes it as the second -f file.
+# The base compose file lists volumes in short syntax; Compose merges an override's volumes by container path, so this one is added.
+services:
+  isaac-sim:
+    volumes:
+      - ${HOME}/robot:/robot:rw
