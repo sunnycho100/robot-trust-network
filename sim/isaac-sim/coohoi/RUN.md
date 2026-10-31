@@ -39,7 +39,7 @@ Runs the paper's `TwoAgent.pth` checkpoint with no display and saves `coohoi_two
    Video('/home/ubuntu/workspace/coohoi_twoagent.mp4', embed=True, width=960)
    ```
 
-The video shows envs 0 and 1: both humanoids walk to the box, lift it together and carry it. CooHOI's green target outline is drawn only in its viewer, so it is not in the video. A still box about 10 m to the left is the ghost copy CooHOI keeps in the partner env. `--cam_env 3` in `run_coohoi.sh` films the next pair; camera distance, size and field of view are constants at the top of `record_coohoi.py`.
+The video shows envs 0 and 1: both humanoids walk to the box, lift it together and carry it. An Isaac Gym camera renders only its own env, and each humanoid of a pair lives in its own env, so `record_coohoi.py` puts a second camera in the partner env at the same world pose and merges the two frames per pixel by depth (`composite()`, checked by `python test_record_coohoi.py`). Look for `[record] env origins ... -> global frames` (or `env-local`) on the first frame; if only one humanoid shows, rerun with `--partner_shift env` or `--partner_shift none` to force the other choice. `--one_cam` goes back to the single-camera video. Unverified until it runs on the VM: two cameras in two envs headless, `get_env_origin`, and `set_rigid_body_segmentation_id` (used to drop the partner env's still ghost box). CooHOI's green target outline is drawn only in its viewer, so it is not in the video. `--cam_env 3` in `run_coohoi.sh` films the next pair; camera distance, size and field of view are constants at the top of `record_coohoi.py`.
 
 Brev's docs only promise that `/home/ubuntu/workspace` survives a stop. If the instance was stopped, rerun step 4.
 

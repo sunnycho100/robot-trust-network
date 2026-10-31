@@ -71,4 +71,4 @@ The frames are owned by the container user, so the scripts `chown` them before f
 
 Gated Hugging Face files (the NuRec dataset) without a token on the VM: download them in a signed-in browser, `split -b 9m` them, upload the parts with the Jupyter file browser, then `cat` them back together and check the sha256. `record_more.sh` expects the wormhole scan at `~/robot/nurec/xgrid-wormhole/wormhole.usdz`.
 
-CooHOI (two humanoids carrying a box, Isaac Gym) has its own setup in [`coohoi/RUN.md`](coohoi/RUN.md). Known gap: the recording camera lives in one of the two paired envs, so only one humanoid shows; a second camera in the partner env, merged by depth, would show both.
+CooHOI (two humanoids carrying a box, Isaac Gym) has its own setup in [`coohoi/RUN.md`](coohoi/RUN.md). Each humanoid of a pair lives in its own Isaac Gym env and a camera renders only its own env, so the recorder films both envs from the same pose and merges them by depth (unverified on the VM).

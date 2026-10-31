@@ -65,6 +65,18 @@ One H1 in our scene. The import is headless and writes `/robot/our_scene/our_sce
 
 The room is 4.5 x 4.1 m and cluttered (0.2 m clearance at that spot), so the H1 reaches clutter or a wall within a few steps. `--command 0 0 0` makes it stand, `--command 0.45 0 0.7` walks a left arc.
 
+Several robots with their stock policies in one scene (two H1s, Spot, Go2 and ANYmal walking circles in the full warehouse; `--robot KIND X Y YAW VX VY WZ` repeated replaces them, `--scene` takes a local file):
+
+```bash
+/isaac-sim/python.sh /robot/isaac-sim/demos/multi_robot_scene.py --stream
+```
+
+Render a camera walkthrough of a stock environment for reconstruction tests. It writes images, a COLMAP model with the exact poses, 16-bit depth, the ground-truth mesh and a held-out list (headless, no viewer needed; `python test_capture_walkthrough.py` checks the pose math):
+
+```bash
+/isaac-sim/python.sh /robot/isaac-sim/demos/capture_walkthrough.py /robot/walk/full_warehouse --frames 240
+```
+
 ## 3. Back to the normal viewer
 
 ```bash
