@@ -1,0 +1,9 @@
+station: WS20
+cycle_id: '005_1003'
+std_time_s:
+  1. Adjust WS: 28.0
+  2. Fixate rearview mirror: 61.0
+  3. Fixate tie rod: 68.0
+  5. Fixate carrier: 98.0
+basis: leave-one-cycle-out median of the annotated step durations of the other cycles
+  (emulated standard-work combination sheet)

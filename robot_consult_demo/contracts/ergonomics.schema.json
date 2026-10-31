@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ergonomics",
+  "type": "object",
+  "required": [
+    "method",
+    "cycles",
+    "validation"
+  ],
+  "properties": {
+    "cycles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "station",
+          "cycle_id",
+          "postures_s"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "metric",
+        "value",
+        "n",
+        "pairs"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

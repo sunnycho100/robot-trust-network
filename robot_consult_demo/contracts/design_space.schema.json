@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "design_space",
+  "type": "object",
+  "required": [
+    "factors",
+    "criteria",
+    "counts",
+    "designs",
+    "personas",
+    "featured_comparisons"
+  ],
+  "properties": {
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "sense",
+          "unit"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 2
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "factor_runs",
+        "unique_designs",
+        "screen_pareto",
+        "simulated",
+        "final_pareto"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "designs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "arms",
+          "robots",
+          "metrics",
+          "pareto_screen",
+          "dominated_by"
+        ],
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "required": [
+              "npv_usd",
+              "capex_usd",
+              "awkward_s",
+              "max_cycle_s",
+              "n_robots"
+            ],
+            "properties": {},
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      },
+      "minItems": 2
+    },
+    "personas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "weights",
+          "best",
+          "top3"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "featured_comparisons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "rows",
+          "verdict"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 0
+    }
+  },
+  "additionalProperties": true
+}

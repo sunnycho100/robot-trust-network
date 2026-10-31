@@ -1,0 +1,6 @@
+station: WS30
+cycle_id: '004_1004'
+std_time_s:
+  1. Fixate speaker: 53.0
+basis: leave-one-cycle-out median of the annotated step durations of the other cycles
+  (emulated standard-work combination sheet)

@@ -1,0 +1,81 @@
+# CarDA door line - simulation scenario matrix (hand-off to the robot-simulation team)
+# Every scenario x concurrency policy x random draw is one run. Report the KPIs below per run, then per scenario
+# (mean, p95, worst). Numbers marked "from:" come from the pipeline outputs; the rest are stated assumptions.
+
+line:
+  takt_s: 240                     # from: config/demo.yaml (CarDA: ~4 min cycle)
+  station_cycle_cap_s: 228        # from: s5 robust rule, 95% of takt
+  handover_s_per_robot_element: 2 # from: s5 model (station cycle = max(worker, robot) + handover)
+  conveyor_speed_mm_s: {WS10: 24.7, WS20: 24.6, WS30: 23.9}   # from: s1 (two cameras, ~3% spread)
+
+scenarios:
+  A_recommended:                  # from: s5 robust_min_cost
+    robots:
+      WS10: {model: Doosan M0617, mount: linear_track, tool: OnRobot Screwdriver, does: [GET_TOOL, REACH_FASTENER, FASTEN], screws: 4}
+      WS20: {model: Doosan M0617, mount: linear_track, tool: [Robotiq 2F-85, OnRobot Screwdriver], tool_changer: true,
+             does: [GET_PART, INSERT, GET_TOOL, REACH_FASTENER, FASTEN], places: 3, screws: 9}
+      WS30: {model: Doosan M0617, mount: linear_track, tool: OnRobot Screwdriver, does: [GET_TOOL, REACH_FASTENER, FASTEN], screws: 4}
+    layout: amr_kitting_all_stations   # worker WALK time x0.5 (assumption)
+  B_min_cost:                     # from: s5 min_cost - cheapest, but WS30 at 239.9 s and 28% takt overruns in DES
+    robots:
+      WS20: {model: Doosan M0617, mount: linear_track, tool: [Robotiq 2F-85, OnRobot Screwdriver], tool_changer: true}
+    layout: amr_kitting_all_stations
+  C_on_platform:                  # future alternative: robot rides the belt platform next to the worker
+    note: "no track, no conveyor tracking; required reach from the worker position 625-811 mm (s3)"
+    candidate_models: [UR10e, UR15, CRX-10iA, CRX-10iA/L, M1013, M0617, TM12S, HC10DTP]  # from: report sec. mounting
+    robots_per_station: 1
+    extra_requirements: [platform-mounted controller, power/air slip ring or battery, return of the platform with the belt loop]
+  D_shared_cobot:                 # machine-cluster check n' = (Tm+Ts)/(Ts+Tr) from s5: one cobot for two stations
+    pairs: [[WS10, WS20], [WS20, WS30]]
+    busy_s_per_240: [196, 199]     # from: s5 worker_machine / machine-cluster analysis
+    note: "needs a track spanning both stations; test whether both tracking windows fit in one takt"
+
+concurrency_policies:             # how the worker and the robot share the door (decisive for feasibility)
+  P1_parallel_ssm: "robot works while the worker works; speed-and-separation monitoring slows/stops the robot"
+  P2_zone_exclusive: "robot works only when the worker is >= 1.0 m from the active target; otherwise waits"
+  P3_sequential: "worker finishes observed work at the door, then the robot runs (worst case)"
+  # P3 with the WHOLE worker load in series (incl. the unobserved block): WS10 195.7+47.6+6 = 249 s and
+  # WS30 205.1+49.0+6 = 260 s exceed 228 s; WS20 44.0+150.2+10 = 204 s fits. Only the door-bound worker elements
+  # (e.g. INSERT) really have to be in series with the robot; where the worker spends the unobserved 146 s (WS10) /
+  # 187 s (WS30) is unknown - this is the main thing the simulation must settle.
+  # Baseline replay (out/sim_package/*/kpi_*.json): WS10 worker and robot overlap at the door (min distance < 0),
+  # WS20 overlap only in the first ~27 s, WS30 conflict-free if the worker leaves after INSERT, 100% SSM if not.
+
+randomization:                    # draws per run; at least 30 runs per scenario x policy
+  conveyor_speed_rel: [-0.05, 0.05]        # uniform
+  door_pose_offset_mm: {along_line: 10, across: 10, vertical: 10, yaw_deg: 1.0}   # cart-to-cart variation (assumption)
+  worker_element_time: lognormal from out/s2/time_study.json element_stats (mean_s, std_s; CV capped at 0.5)
+  joint_accel_rad_s2: [1.0, 2.0]           # vendors do not publish; base case 1.4 (URScript default)
+  screw_rundown_s: [2.0, 3.5]              # base 2.51 s (OnRobot 340 rpm, 12.5 turns + torque-up)
+
+ssm:                              # ISO/TS 15066 protective separation distance, simplified (used by replay.py)
+  v_h_m_s: 1.6                    # ISO 13855 walking speed
+  T_r_s: 0.1                      # sensing + robot reaction (assumption, scanner 70 ms + controller)
+  T_s_s: 0.326                    # M0617 stop time, Cat 0, J2, full extension/speed/payload (Doosan manual, via s4 catalog)
+  C_m: 0.12                       # intrusion distance (hand)
+  Z_d_m: 0.05                     # sensor uncertainty
+  Z_r_m: 0.02                     # robot position uncertainty
+
+kpis:                             # report all, per station and run
+  - station_cycle_s               # max(worker, robot) + handover (+ waits from the policy)
+  - robot_cycle_s                 # incl. tracking sync, track return, tool changes
+  - robot_wait_s                  # time the robot waits for the worker (policy P2/P3) or for SSM
+  - ssm_slowdown_s                # time below S_p (P1)
+  - min_robot_worker_distance_m
+  - ik_failures / collisions       # robot vs door, cart, pedestal, tray
+  - tracking_tcp_error_mm          # at screw contact while tracking the belt
+  - takt_overrun_share            # share of runs with station_cycle_s > 228 s
+
+acceptance:                       # pass = all true for scenario A in its best policy
+  station_cycle_p95_s: {WS10: 228, WS20: 228, WS30: 228}
+  robot_cycle_p95_s: {WS10: 222, WS20: 218, WS30: 222}
+  collisions: 0
+  ik_failures: 0
+  tracking_tcp_error_mm_max: 1.0   # s3 precision requirement for screwdriving
+  payload_check: "(tool + part) x 1.25 <= 6 kg"
+
+return_to_ie_team:                # so s5 -> s6b -> s7 -> s8 can be re-run automatically
+  file: out/s6a/robot_task_times.json
+  contract: contracts/robot_task_times.schema.json
+  required: [model, group_id, station, cycle_time_s, breakdown, breakdown_by_code, ik_success_rate, collision_free_rate, sim]
+  plus: "a table of (scenario, policy, station) -> station_cycle_s p50/p95, robot_wait_s, ssm_slowdown_s"

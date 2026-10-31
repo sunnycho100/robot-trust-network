@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "task_plan",
+  "type": "object",
+  "required": [
+    "primitives",
+    "plans"
+  ],
+  "properties": {
+    "plans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "station",
+          "model",
+          "steps",
+          "bt_xml"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

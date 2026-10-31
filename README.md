@@ -1,6 +1,6 @@
 # robot-trust-network
 
-Two pipelines live here. One turns a real site into a simulation, so we can check that a robot can do the job there before anyone buys it. The other is a trust layer, so robots from different owners can work together safely.
+Three pipelines live here. One turns a real site into a simulation, so we can check that a robot can do the job there before anyone buys it. The other is a trust layer, so robots from different owners can work together safely.
 
 ## Pipeline 1: site to simulation
 
@@ -59,6 +59,27 @@ flowchart LR
 
 The broker can read every message. Signing proves who sent it and that nothing changed on the way; it does not hide it. The simulation side uses this too: in the MuJoCo duo demo, the follower robot moves only after the leader's signed request is allowed.
 
+## Pipeline 3: line video to robot decision
+
+```mermaid
+flowchart LR
+    V["01 · CAPTURE<br/>Line video<br/>plus a one-page intake"]
+    P["02 · POSE AND SCENE<br/>Worker 3D pose, conveyor,<br/>work zones"]
+    E["03 · TIME STUDY<br/>Work elements, standard time,<br/>variability, ergonomics"]
+    A["04 · AUTOMATABILITY<br/>Which elements can a robot take?"]
+    R["05 · ROBOT CATALOG<br/>15 commercial arms, reach,<br/>payload, MuJoCo task times"]
+    O["06 · OPTIMIZE<br/>Human-robot split, line balance,<br/>1,219 designs to 3 options"]
+    S["07 · LINE SIM<br/>DES, 30 replications"]
+    D["08 · DECIDE<br/>ROI and RFQ per station"]
+    V --> P --> E --> A --> R --> O --> S --> D
+    classDef stage fill:#141416,stroke:#2C2C30,color:#F2F2EF
+    classDef focus fill:#F2F2EF,stroke:#0B0B0C,color:#0B0B0C
+    class V,P,R,S,D stage
+    class E,A,O focus
+```
+
+Pipeline 1 starts from an empty site. This one starts from a line that is already running with people on it. It splits the work into elements, scores which ones a robot could take, matches commercial robots, and ends with three options for the customer (layout only, one robot, three robots) with ROI for each. It runs on the public CarDA car-door line. A video-only mode (no mocap) lands on the same recommendation type and robot count. Details are in [`robot_consult_demo/README.md`](robot_consult_demo/README.md).
+
 ## What works today
 
 **Network** (`network/`)
@@ -81,6 +102,11 @@ The broker can read every message. Signing proves who sent it and that nothing c
 - `sim/sam-g1-manipulation/`: a G1 with grippers, picking actions from camera images (experimental)
 - `sim/vla_sim.py`: a vision-language model driving a Panda arm or Go2 through skill calls
 
+**Line video to robot decision** (`robot_consult_demo/`)
+- Stages s0 to s9 run end to end on a laptop in about 2 minutes, each behind a JSON contract and an acceptance gate
+- Time study, automatability scoring, robot catalog matching, line balancing, DES and ROI on the CarDA door line
+- Three customer options picked from 1,219 evaluated designs, plus simulation packages for each option
+
 ## Known gaps
 - A key revoked mid-task is not noticed until the next request.
 - Messages to an offline robot are lost (QoS 0).
@@ -91,6 +117,7 @@ The broker can read every message. Signing proves who sent it and that nothing c
 |---|---|---|
 | `network/` | Network team | Message signing and verification, key registry, replay protection, MQTT transport, trust and decision rules |
 | `sim/` | Simulation team | MuJoCo robots (Unitree demos, manipulation, VLA sim), site reconstruction, Isaac Sim export |
+| `robot_consult_demo/` | IE team | Line video to robot recommendation: time study, automatability, robot catalog, line balancing, DES, ROI |
 | `docs/` | Everyone | Shared message format, architecture, slides, Isaac Sim hosting |
 
 Start with [`docs/message-format.md`](docs/message-format.md). Both teams build against it, so change it only by agreement.

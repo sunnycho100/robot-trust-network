@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "candidates",
+  "type": "object",
+  "required": [
+    "task_groups"
+  ],
+  "properties": {
+    "task_groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "group_id",
+          "station",
+          "codes",
+          "category",
+          "requirements",
+          "evaluated"
+        ],
+        "properties": {
+          "evaluated": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "model",
+                "passed",
+                "reasons",
+                "reachability"
+              ],
+              "properties": {},
+              "additionalProperties": true
+            },
+            "minItems": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

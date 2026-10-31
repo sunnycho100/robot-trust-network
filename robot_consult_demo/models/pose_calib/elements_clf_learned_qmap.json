@@ -1,0 +1,155 @@
+{
+ "variant": "learned_qmap",
+ "model": "sklearn HistGradientBoostingClassifier (log-loss), evidence = log P(code|x) - log P(code) (hybrid HMM scaled likelihoods)",
+ "features": "multi-scale (0.5/1.5/4 s) rolling mean/std/p10/p90 of speed, reach, hand distance and wrist-height signals + trunk flexion + distances to work anchor and line side",
+ "labels": "reference element codes (out_regress/s2/elements.json, mocap + annotated subgoals)",
+ "test": "out_generic/s1 video joints (RTS-smoothed, quantile-mapped)",
+ "test_scene_graph_mtime": "2026-10-31T04:15:24",
+ "trained_at": "2026-10-31T04:34:23",
+ "pairs": [
+  "WS10_002_0921",
+  "WS10_002_1003",
+  "WS10_003_0921",
+  "WS10_004_1003",
+  "WS10_005_1003",
+  "WS20_002_1003",
+  "WS20_003_1003",
+  "WS20_004_1003",
+  "WS20_005_1003",
+  "WS30_002_1004",
+  "WS30_003_1004",
+  "WS30_004_1004",
+  "WS30_005_1004"
+ ],
+ "models": [
+  "all",
+  "exclude_WS10",
+  "exclude_WS20",
+  "exclude_WS30"
+ ],
+ "report": {
+  "all": {
+   "n_train_frames": 12916,
+   "train_stations": [
+    "WS10",
+    "WS20",
+    "WS30"
+   ],
+   "classes": [
+    "FASTEN",
+    "GET_PART",
+    "GET_TOOL",
+    "IDLE",
+    "INSERT",
+    "INSPECT",
+    "REACH_FASTENER",
+    "SETUP",
+    "WALK"
+   ],
+   "priors": {
+    "FASTEN": 0.32904924125116136,
+    "GET_PART": 0.015020130071229482,
+    "GET_TOOL": 0.049705791266646024,
+    "IDLE": 0.03561474140600805,
+    "INSERT": 0.21872096624341902,
+    "INSPECT": 0.00224527717559616,
+    "REACH_FASTENER": 0.08400433570764942,
+    "SETUP": 0.00611644471972747,
+    "WALK": 0.259523072158563
+   }
+  },
+  "exclude_WS10": {
+   "n_train_frames": 8399,
+   "train_stations": [
+    "WS20",
+    "WS30"
+   ],
+   "classes": [
+    "FASTEN",
+    "GET_PART",
+    "GET_TOOL",
+    "IDLE",
+    "INSERT",
+    "REACH_FASTENER",
+    "WALK"
+   ],
+   "priors": {
+    "FASTEN": 0.3861173949279676,
+    "GET_PART": 0.008572449101083462,
+    "GET_TOOL": 0.04548160495297059,
+    "IDLE": 0.042028812953923085,
+    "INSERT": 0.22443147993808787,
+    "REACH_FASTENER": 0.09084414811287057,
+    "WALK": 0.2025241100130968
+   },
+   "held_out_station": "WS10",
+   "held_out_frame_accuracy": 0.4129,
+   "n_test_frames": 4517
+  },
+  "exclude_WS20": {
+   "n_train_frames": 6234,
+   "train_stations": [
+    "WS10",
+    "WS30"
+   ],
+   "classes": [
+    "FASTEN",
+    "GET_PART",
+    "GET_TOOL",
+    "IDLE",
+    "INSERT",
+    "INSPECT",
+    "REACH_FASTENER",
+    "SETUP",
+    "WALK"
+   ],
+   "priors": {
+    "FASTEN": 0.24911774141803017,
+    "GET_PART": 0.02662816811036253,
+    "GET_TOOL": 0.04667949951876805,
+    "IDLE": 0.02406159769008662,
+    "INSERT": 0.19377606673083092,
+    "INSPECT": 0.00465190888675008,
+    "REACH_FASTENER": 0.11726018607635547,
+    "SETUP": 0.012672441450112287,
+    "WALK": 0.3251523901187039
+   },
+   "held_out_station": "WS20",
+   "held_out_frame_accuracy": 0.411,
+   "n_test_frames": 6682
+  },
+  "exclude_WS30": {
+   "n_train_frames": 11199,
+   "train_stations": [
+    "WS10",
+    "WS20"
+   ],
+   "classes": [
+    "FASTEN",
+    "GET_PART",
+    "GET_TOOL",
+    "IDLE",
+    "INSERT",
+    "INSPECT",
+    "REACH_FASTENER",
+    "SETUP",
+    "WALK"
+   ],
+   "priors": {
+    "FASTEN": 0.33074381641217965,
+    "GET_PART": 0.01339405304045004,
+    "GET_TOOL": 0.05455844271809983,
+    "IDLE": 0.03723546745245111,
+    "INSERT": 0.22832395749620502,
+    "INSPECT": 0.0025895169211536746,
+    "REACH_FASTENER": 0.06036253236896152,
+    "SETUP": 0.007054201267970355,
+    "WALK": 0.2657380123225288
+   },
+   "held_out_station": "WS30",
+   "held_out_frame_accuracy": 0.3442,
+   "n_test_frames": 1717
+  }
+ },
+ "caveat": "leave-one-station-out with 3 stations is a small-sample estimate of transfer to new lines"
+}

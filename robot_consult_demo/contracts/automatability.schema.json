@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "automatability",
+  "type": "object",
+  "required": [
+    "criteria",
+    "tasks"
+  ],
+  "properties": {
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "weight",
+          "description",
+          "source"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 6
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "station",
+          "code",
+          "scores",
+          "total",
+          "category",
+          "rationale",
+          "allocation"
+        ],
+        "properties": {},
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}
