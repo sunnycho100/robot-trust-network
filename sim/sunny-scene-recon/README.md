@@ -60,6 +60,8 @@ All scores are against a laser scan (ETH3D evaluator), F1 at 2 / 5 cm. Meshes ar
 
 Splats win on looks and lose on geometry, so collisions come from the MVS mesh and splats are only a visual layer.
 
+**NVIDIA 3DGRUT (3DGUT, MCMC, 1M Gaussians, 30k steps)** on the DSLR photos at 2069 px with ETH3D's poses, every 8th photo held out, 48 min on a Colab L4: PSNR 23.0, SSIM 0.89, LPIPS 0.36. Its depth (`colab/grut_points.py`, multi-view consistency like ours) scores 0.07 / 0.16 as points and 0.06 / 0.15 as a mesh, against 0.78 / 0.88 for PatchMatch on the same poses. The fused points sit a median 12 cm from the scan, so it is spread error, not an offset. Same verdict: 3DGRUT gives the Isaac Sim USDZ, PatchMatch gives the collider (`colab/grut_collider.py` puts both in one frame).
+
 **Per-pixel depth** against ETH3D's laser depth maps (`colab/depth_check.py`): on the training photos, ours has 66% of laser pixels within 5 cm (median error 3.5 cm), and 49% (3.8 cm) on the held-out ones. vid2scene's rendered splat depth has 6% within 5 cm and a median error of 1.5 m even on the photos it was trained on, mostly placing surfaces behind the real ones.
 
 **Collision checks** (`check_collisions.py`), outdoor path on `delivery_area`: heightfield vs mesh ground 0.9 cm (95th percentile). Against the laser scan's own ground, where the camera saw the ground (278 m2): median 0.25 cm, 95th percentile 1.0 cm. Ground the mesh filled in (40 m2): median 0.4 cm, 95th percentile 64 cm, 5 m2 off by over 20 cm. Under the roof, where the laser has no ground either, our heightfield sits on the ceiling in about 100 m2, which these scores leave out.

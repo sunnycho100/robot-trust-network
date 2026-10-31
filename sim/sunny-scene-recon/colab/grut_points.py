@@ -62,12 +62,14 @@ def main():
             db[inside] = zb[v[inside], u[inside]]
             agree += inside & (db > 0) & (np.abs(db - pz) < 0.01 * pz)
         keep = agree >= 2
+        print(f"view {a}: kept {keep.sum()} of {len(keep)} points", flush=True)
+        if keep.sum() < 30:  # too few for normals (a view facing open space or a blank wall)
+            continue
         pc = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(world[keep]))
         if rgb is not None:
             pc.colors = o3d.utility.Vector3dVector(rgb[r, c][ok][keep])
         pc.estimate_normals(o3d.geometry.KDTreeSearchParamKNN(20))
         pc.orient_normals_towards_camera_location(c2w[:3, 3])
-        print(f"view {a}: kept {keep.sum()} of {len(keep)} points", flush=True)
         merged += pc
     merged = merged.voxel_down_sample(0.005)
     work.mkdir(parents=True, exist_ok=True)
