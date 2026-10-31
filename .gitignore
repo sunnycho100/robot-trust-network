@@ -4,5 +4,6 @@ __pycache__/
 *.pyc
 .DS_Store
 sim/menagerie/
+sim/roqsim_factory_upstream/
 sim/last_view.png
 network/keys/
