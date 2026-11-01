@@ -18,6 +18,7 @@ The final car-door scene (v3c) puts two UR20 arms on rails and two Unitree G1 hu
 | `test_rig.py` | IK check: every arm tip and G1 hand lands on its target over the whole plan. |
 | `run_v3c.sh` | Medium render runner: chunks in parallel containers, clean mp4, overlay mp4, contact sheet. |
 | `run_hq.sh` | HQ render runner, with a disk guard. |
+| `finish_hq.sh` | After the HQ render: clean mp4, overlays in post, overlay mp4, contact sheet. |
 | `kill_mine.sh` | Stops only this scene's render containers, leaving other jobs on a shared GPU alone. |
 | `fetch_tex.py`, `fetch_assets.sh` | Texture sets for HQ, and local robot USDs for the laptop-side checks. |
 | `../carda/kin.py` | Shared FK and IK math (`Kin`, `tf`, `rot`, `minjerk`). |
@@ -100,7 +101,7 @@ usdenv/bin/python export_dots.py ~/door_out/plan_v3c ~/door_out/assets \
 ## 5. Render host layout
 
 ```
-~/robot/door_team/   door_team.py rig.py plant.py overlay.py look_hq.py kin.py run_v3c.sh run_hq.sh kill_mine.sh fetch_tex.py
+~/robot/door_team/   door_team.py rig.py plant.py overlay.py look_hq.py kin.py run_v3c.sh run_hq.sh finish_hq.sh kill_mine.sh fetch_tex.py
 ~/robot/door_team/plan_v3c/plan.npz, plan.json
 ~/robot/door_team/tex_cc0/          (HQ only: python3 fetch_tex.py)
 ~/robot/ws30_station/out/ws30_station.usd
@@ -140,7 +141,7 @@ NAME=v3c_hq JOBS=2 DUR=52.7 setsid nohup bash run_hq.sh --spp 8 --subframes 2 --
 
 **Timing:** a still test at 64 samples per pixel ran about 20 s per frame for one process on a shared L40S, so the final render uses 32. The measured time per frame for the final settings is in `docs/evidence/door_team/v3c_hq/HQ_RENDER.txt`. Budget about 4 hours for the 1,580 frames.
 
-**Encode and overlays afterwards:**
+**Encode and overlays afterwards:** `finish_hq.sh` waits for `run_hq.sh` to end and does all of the following (clean mp4, contact sheet, overlays per chunk folder, overlay mp4); start it right after the render with `NAME=v3c_hq setsid nohup bash finish_hq.sh > finish_hq.log 2>&1 &`. By hand:
 
 ```bash
 ffmpeg -framerate 30 -pattern_type glob -i "v3c_hq/rec*/frame_*.jpg" -c:v libx264 -pix_fmt yuv420p -crf 18 door_team_v3c_hq_clean.mp4
