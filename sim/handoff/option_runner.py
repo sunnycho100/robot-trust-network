@@ -75,6 +75,20 @@ def lognormal(rng, mean, std):
     return float(rng.lognormal(math.log(mean) - s2 / 2, math.sqrt(s2)))
 
 
+def draw_elements(stats, st, seed, codes, walk_factor):
+    """Drawn per-cycle element times {code: (normal_s, standard_s)} from time_study element_stats rows of one
+    station; WALK scaled by the walk factor (AMR kitting lever)."""
+    out = {}
+    for c in codes:
+        r = stats.get(c)
+        if r is None or c in ("UNOBS", "IDLE") or r["mean_s"] <= 0:
+            continue
+        x = lognormal(stream(seed, f"{st}/worker/{c}"), r["mean_s"], r["std_s"])
+        wf = walk_factor if c == "WALK" else 1.0
+        out[c] = (x * r["rating"] * wf, x * r["standard_s"] / r["mean_s"] * wf)
+    return out
+
+
 # ------------------------------------------------------------------ constants from their package
 TAKT_CAP = 228.0
 P2_CLEAR_M = 1.0
@@ -150,16 +164,7 @@ class Station:
         return R, self.door_c - R @ self.door_c + off
 
     def worker_draw(self, seed, codes, walk_factor):
-        """Drawn per-cycle element times: {code: (normal_s, standard_s)} from time_study element_stats."""
-        out = {}
-        for c in codes:
-            r = self.stats.get(c)
-            if r is None or c in ("UNOBS", "IDLE") or r["mean_s"] <= 0:
-                continue
-            x = lognormal(stream(seed, f"{self.st}/worker/{c}"), r["mean_s"], r["std_s"])
-            wf = walk_factor if c == "WALK" else 1.0
-            out[c] = (x * r["rating"] * wf, x * r["standard_s"] / r["mean_s"] * wf)
-        return out
+        return draw_elements(self.stats, self.st, seed, codes, walk_factor)
 
     # -------------------------------------------------------------- robot program (their s6a model)
     def program(self, seed, p):
@@ -623,6 +628,116 @@ def write_task_times(progs, summ, rcd, option, out):
     (out / "robot_task_times.json").write_text(json.dumps(doc, indent=1))
 
 
+# ------------------------------------------------------------------ worker-only stations (option A, B's WS10 and WS30)
+def cmd_workeronly(a):
+    """Station cycle = drawn standard times of the elements the option's s5 scenario gives the worker (WALK times the
+    walk factor) + the unobserved block. No robot, so no motion replay is needed for the cycle."""
+    rcd, out = Path(a.rcd), Path(a.out)
+    stage = rcd / "out_options" / a.option
+    alloc = json.loads((stage / "s5" / "allocation.json").read_text())
+    rec = [x for x in alloc["scenarios"] if x.get("recommended")][0]
+    ts = json.loads((stage / "s2" / "time_study.json").read_text())["element_stats"]
+    rows = []
+    for st in a.stations:
+        stats = {r["code"]: r for r in ts if r["station"] == st}
+        asg = [x for x in rec["assignment"] if x["station"] == st]
+        assert all(x["resource"] in ("human", "helper") for x in asg), f"{a.option} {st} has a robot"
+        codes = [x["code"] for x in asg if x["code"] != "UNOBS"]
+        unobs = sum(x["time_s"] for x in asg if x["code"] == "UNOBS")
+        for wf in a.walk:
+            for k in range(a.draws):
+                dr = draw_elements(stats, st, SEEDS[k], codes, wf)
+                cyc = sum(v[1] for v in dr.values()) + unobs
+                rows.append(dict(option=a.option, station=st, policy="none", worker_after="", draw=k, seed=SEEDS[k],
+                                 walk_factor=wf, station_cycle_s=round(cyc, 4), over_cap=cyc > TAKT_CAP,
+                                 worker_s=round(cyc, 4), walk_s=round(dr.get("WALK", (0, 0))[1], 4)))
+    out.mkdir(parents=True, exist_ok=True)
+    f = out / f"results_{a.option}.csv"
+    new = not (a.append and f.exists())
+    with open(f, "w" if new else "a", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=COLS + EXTRA)
+        if new:
+            w.writeheader()
+        w.writerows(rows)
+    print(f"{len(rows)} rows -> {f}")
+
+
+def _load(path):
+    rows = []
+    for r in csv.DictReader(open(path)):
+        for k, v in r.items():
+            try:
+                r[k] = float(v) if v not in ("", "True", "False") else (v == "True" if v else v)
+            except ValueError:
+                pass
+        rows.append(r)
+    return rows
+
+
+def cmd_compare(a):
+    """Combined summary of A, B and C on the same draws, plus the line view: per draw k the slowest station."""
+    out = Path(a.out)
+    rows = [r for p in a.inputs for r in _load(p)]
+    cells = {}
+    for r in rows:
+        key = (r["option"], r["station"], r["policy"], r["worker_after"], r["walk_factor"])
+        cells.setdefault(key, []).append(r)
+
+    def stat(rs):
+        c = [r["station_cycle_s"] for r in rs]
+        return {"n": len(c), "station_cycle_p50_s": round(pct(c, 50), 1), "station_cycle_p95_s": round(pct(c, 95), 1),
+                "share_above_228_s": round(float(np.mean([x > TAKT_CAP for x in c])), 3),
+                "share_above_240_s": round(float(np.mean([x > 240 for x in c])), 3)}
+
+    summ = {"cap_s": TAKT_CAP, "takt_s": 240, "seeds": SEEDS, "cells": [], "best_policy": {}, "line": [], "ranking": {}}
+    for (o, st, pol, wa, wf), rs in sorted(cells.items(), key=lambda kv: tuple(map(str, kv[0]))):
+        summ["cells"].append({"option": o, "station": st, "policy": pol, "worker_after": wa, "walk_factor": wf, **stat(rs)})
+    # best policy per (option, robot station, worker case): same rule as summarize()
+    for (o, st, pol, wa, wf), rs in cells.items():
+        if pol == "none":
+            continue
+        b = summ["best_policy"].setdefault(o, {}).setdefault(st, {})
+        p95 = pct([r["station_cycle_s"] for r in rs], 95)
+        key = (sum(r["collisions"] for r in rs) > 0, round(p95, 1), -min(r["min_dist_m"] for r in rs))
+        if wa not in b or key < tuple(b[wa]["_key"]):
+            b[wa] = {"policy": pol, "station_cycle_p95_s": round(p95, 1), "_key": list(key)}
+    for o in summ["best_policy"].values():
+        for st in o.values():
+            for v in st.values():
+                v.pop("_key")
+
+    def station_draws(o, st, wa, wf):
+        pol = summ["best_policy"].get(o, {}).get(st, {}).get(wa, {}).get("policy", "none")
+        rs = cells.get((o, st, pol, wa if pol != "none" else "", wf), [])
+        return {int(r["draw"]): r["station_cycle_s"] for r in rs}
+
+    scen = [("A", "walk 0.5 (IE assumption)", "", 0.5), ("A", "walk 0.7", "", 0.7), ("A", "walk 1.0", "", 1.0),
+            ("B", "worker leaves", "leaves", 0.5), ("B", "worker stays", "stays", 0.5),
+            ("C", "worker leaves", "leaves", 0.5), ("C", "worker stays", "stays", 0.5)]
+    for o, label, wa, wf in scen:
+        per = [station_draws(o, st, wa, wf) for st in ("WS10", "WS20", "WS30")]
+        if not all(per):
+            continue
+        ks = sorted(set.intersection(*[set(p) for p in per]))
+        worst = [max(p[k] for p in per) for k in ks]
+        allc = [p[k] for p in per for k in ks]
+        summ["line"].append({"option": o, "case": label, "draws": len(ks),
+                             "slowest_station_p50_s": round(pct(worst, 50), 1),
+                             "slowest_station_p95_s": round(pct(worst, 95), 1),
+                             "share_draws_any_station_above_228_s": round(float(np.mean([w > TAKT_CAP for w in worst])), 3),
+                             "share_station_cycles_above_240_s": round(float(np.mean([c > 240 for c in allc])), 3),
+                             "p95_by_station_s": {st: round(pct(list(p.values()), 95), 1) for st, p in zip(("WS10", "WS20", "WS30"), per)},
+                             "share_above_228_by_station": {st: round(float(np.mean([v > TAKT_CAP for v in p.values()])), 3)
+                                                            for st, p in zip(("WS10", "WS20", "WS30"), per)}})
+    for case in ("worker leaves", "worker stays"):
+        pick = [l for l in summ["line"] if l["case"] in (case, "walk 0.5 (IE assumption)")]
+        order = sorted(pick, key=lambda l: (l["share_draws_any_station_above_228_s"], l["slowest_station_p95_s"]))
+        summ["ranking"][case] = [l["option"] for l in order]
+    summ["ranking"]["ie_prediction"] = ["C", "B", "A"]
+    (out / "summary.json").write_text(json.dumps(summ, indent=1))
+    print(json.dumps({"line": summ["line"], "ranking": summ["ranking"], "best_policy": summ["best_policy"]}, indent=1))
+
+
 # ------------------------------------------------------------------ baseline check (their section 7)
 def cmd_baseline(a):
     rcd = Path(a.rcd)
@@ -850,7 +965,8 @@ def selfcheck():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["run", "baseline", "video", "sidebyside", "contrast", "selfcheck"])
+    ap.add_argument("cmd", choices=["run", "baseline", "video", "sidebyside", "contrast", "workeronly", "compare",
+                                    "selfcheck"])
     ap.add_argument("--rcd", default="robot_consult_demo")
     ap.add_argument("--option", default="C")
     ap.add_argument("--stations", nargs="*")
@@ -863,12 +979,16 @@ def main():
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--t-end", type=float, default=None)
     ap.add_argument("--every", type=float, default=0.4, help="video: cycle seconds between frames (25 fps output)")
+    ap.add_argument("--walk", nargs="*", type=float, default=[0.5], help="workeronly: walk factors")
+    ap.add_argument("--append", action="store_true", help="workeronly: append to an existing results_<OPT>.csv")
+    ap.add_argument("--inputs", nargs="*", help="compare: results_<OPT>.csv files")
     ap.add_argument("--out")
     a = ap.parse_args()
     if a.cmd in ("video", "sidebyside"):
         a.after = a.after[0]
     {"run": cmd_run, "baseline": cmd_baseline, "video": cmd_video, "sidebyside": cmd_sidebyside,
-     "contrast": cmd_contrast, "selfcheck": lambda _: selfcheck()}[a.cmd](a)
+     "contrast": cmd_contrast, "workeronly": cmd_workeronly, "compare": cmd_compare,
+     "selfcheck": lambda _: selfcheck()}[a.cmd](a)
 
 
 if __name__ == "__main__":
