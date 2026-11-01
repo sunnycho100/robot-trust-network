@@ -2,7 +2,7 @@
 # After record_all.sh: import our scanned floor (HCIC floor4_static3) and record an H1 walking in it. Usage (on the VM): bash record_ours.sh
 set -u
 export ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0
-C="docker compose -p isim -f $HOME/IsaacSim/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
+C="docker compose -p isim -f ${REPO:-$HOME/IsaacSim}/tools/docker/docker-compose.yml -f $HOME/robot/isaac-sim/docker-compose.override.yml"
 R=$HOME/robot/recordings; S=/robot/scenes/floor4_static3
 until grep -q "all done" "$R/batch.log" 2>/dev/null; do sleep 20; done
 sudo setfacl -R -m u:1234:rwX $HOME/robot
