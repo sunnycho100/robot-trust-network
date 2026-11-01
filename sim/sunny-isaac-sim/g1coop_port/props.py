@@ -93,6 +93,65 @@ def box(stage, path, lo, hi, mat):
     return m
 
 
+def chamfer_box(stage, path, lo, hi, mat, c):
+    """Box with every edge bevelled by c (m): 6 faces, 12 edge strips, 8 corner triangles. Planar UVs in metres."""
+    lo, hi = np.asarray(lo, float), np.asarray(hi, float)
+    c = min(c, *(0.45 * (hi - lo)))
+    corners = [(sx, sy, sz) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
+    P = {}
+    for k in corners:
+        base = np.where(np.array(k) > 0, hi, lo)
+        for a in range(3):  # vertex of corner k on the face normal to axis a: inset along the other two axes
+            v = base.copy()
+            for o in range(3):
+                if o != a:
+                    v[o] -= k[o] * c
+            P[k, a] = v
+    faces = []
+    for a in range(3):
+        for s in (-1, 1):
+            o1, o2 = [o for o in range(3) if o != a]
+            ring = [(s if i == a else None) for i in range(3)]
+            quad = []
+            for u, v in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                k = list(ring); k[o1], k[o2] = u, v
+                quad.append(P[tuple(k), a])
+            n = np.zeros(3); n[a] = s
+            faces.append((quad, n))
+    for e in range(3):
+        u, v = [o for o in range(3) if o != e]
+        for su in (-1, 1):
+            for sv in (-1, 1):
+                ks = []
+                for se in (-1, 1):
+                    k = [0, 0, 0]; k[e], k[u], k[v] = se, su, sv
+                    ks.append(tuple(k))
+                quad = [P[ks[0], u], P[ks[1], u], P[ks[1], v], P[ks[0], v]]
+                n = np.zeros(3); n[u], n[v] = su, sv
+                faces.append((quad, n / np.linalg.norm(n)))
+    for k in corners:
+        faces.append(([P[k, 0], P[k, 1], P[k, 2]], np.array(k) / np.sqrt(3)))
+    pts, nrm, uvs, counts = [], [], [], []
+    for poly, n in faces:
+        a = int(np.argmax(np.abs(n)))
+        ax = [o for o in range(3) if o != a]
+        for p in poly:
+            pts.append(Gf.Vec3f(*p)); nrm.append(Gf.Vec3f(*n)); uvs.append(Gf.Vec2f(float(p[ax[0]]), float(p[ax[1]])))
+        counts.append(len(poly))
+    m = UsdGeom.Mesh.Define(stage, path)
+    m.CreatePointsAttr(pts)
+    m.CreateFaceVertexCountsAttr(counts)
+    m.CreateFaceVertexIndicesAttr(list(range(len(pts))))
+    m.CreateNormalsAttr(nrm)
+    m.SetNormalsInterpolation('faceVarying')
+    m.CreateSubdivisionSchemeAttr('none')
+    m.CreateDoubleSidedAttr(True)
+    m.CreateExtentAttr([Gf.Vec3f(*lo), Gf.Vec3f(*hi)])
+    UsdGeom.PrimvarsAPI(m).CreatePrimvar('st', Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying).Set(uvs)
+    bind(m.GetPrim(), mat)
+    return m
+
+
 def cyl(stage, path, center, r, h, mat, axis='Z', sides=None):
     c = UsdGeom.Cylinder.Define(stage, path)
     c.CreateRadiusAttr(r)
@@ -106,8 +165,10 @@ def cyl(stage, path, center, r, h, mat, axis='Z', sides=None):
     return c
 
 
-def tote(stage, base, L):
-    """1 G1 load: blue-grey KLT tote in the seat volume, a slotted rack of steel brackets in the back volume."""
+def tote(stage, base, L, back=True):
+    """1 G1 load: a blue-grey KLT tote filling the seat volume exactly, so the palms rest on its walls.
+    back=True (her sofa_side carry, hands on the back block): a strapped bundle of steel flat bars fills that block
+    flush with its faces. back=False (tote_side, no back): the tote is closed with a lid."""
     k = stage.DefinePrim(base + '/KLT', 'Xform')
     k.GetReferences().AddReference(KLT)
     x = UsdGeom.Xformable(k)
@@ -115,17 +176,17 @@ def tote(stage, base, L):
     plastic = L.pbr('KLT_Plastic', (.36, .45, .52), .55)
     for mesh in ('FOF_Mesh_Magenta_Box', 'FOF_Mesh_Label_1', 'FOF_Mesh_Label_6_Small'):
         bind(stage.OverridePrim(f'{base}/KLT/Visuals/{mesh}'), plastic if 'Box' in mesh else L.pbr('Label', (.92, .92, .88), .7))
-    paint, steel, part = L.pbr('Rack_Paint', (.16, .2, .24), .45, .2), L.base('Metals', 'Steel_Carbon'), L.base('Metals', 'Steel_Cast')
-    for s in (-1, 1):  # rack end plates: the grip faces at y = +-0.215 above the rim
-        box(stage, f'{base}/rack_end{"np"[s > 0]}', (-.14, s * .215 - (s > 0) * .012, .08), (-.06, s * .215 + (s < 0) * .012, .35), paint)
-    box(stage, base + '/rack_rail_top', (-.11, -.203, .33), (-.09, .203, .35), steel)
-    box(stage, base + '/rack_rail_low', (-.11, -.203, -.06), (-.08, .203, -.04), steel)
-    for i, y in enumerate(np.linspace(-.16, .16, 6)):  # upright brackets in the slots
-        box(stage, f'{base}/bracket{i}', (-.125, y - .006, -.08), (-.065, y + .006, .30), part)
-        box(stage, f'{base}/bracket{i}_flange', (-.125, y - .02, .28), (-.065, y + .02, .292), part)
-    bush = L.base('Metals', 'Steel_Stainless')
-    for i, (px, py) in enumerate([(.02, -.12), (.08, -.06), (.03, .02), (.09, .09), (.02, .14)]):
-        cyl(stage, f'{base}/bushing{i}', (px, py, -.06), .028, .05, bush)
+    if not back:
+        lid = L.pbr('KLT_Lid', (.30, .38, .45), .5)  # closed lid inside the rim, flush with the top of the volume
+        box(stage, base + '/lid', (-.135, -.21, .078), (.135, .21, .09), lid)
+        box(stage, base + '/lid_grip', (-.04, -.12, .09 - .004), (.04, .12, .09), lid)
+        return
+    bar, band = L.base('Metals', 'Steel_Cast'), L.base('Metals', 'Steel_Blued')
+    ys = np.linspace(-.215, .215, 14)
+    for i, (y0, y1) in enumerate(zip(ys[:-1], ys[1:])):
+        box(stage, f'{base}/bar{i:02d}', (-.14, y0 + .0008, -.08), (-.06, y1 - .0008, .35 - .004 * (i % 3)), bar)
+    for i, z in enumerate((.12, .26)):  # two bands around the bundle, inside the outer faces
+        box(stage, f'{base}/band{i}', (-.1405, -.2145, z), (-.0595, .2145, z + .025), band)
 
 
 def sheet_bundle(stage, base, L):
@@ -139,7 +200,7 @@ def sheet_bundle(stage, base, L):
         dx, dy = rng.uniform(-.004, .004, 2)
         box(stage, f'{base}/sheet{i:02d}', (-.546 + dx, -.316 + dy, z), (.546 + dx, .316 + dy, z + t), sheet)
         z += t + gap
-    for i, x in enumerate((-.42, .42)):  # two steel straps over the top, down the sides, under the stack
+    for i, x in enumerate((-.22, .22)):  # two steel straps, clear of the palms at x = +-0.45
         box(stage, f'{base}/strap{i}_top', (x - .016, -.32, .117), (x + .016, .32, .12), strap)
         for s in (-1, 1):
             box(stage, f'{base}/strap{i}_side{"np"[s > 0]}', (x - .016, s * .3175 - .0015, -.068), (x + .016, s * .3175 + .0015, .12), strap)
@@ -148,10 +209,10 @@ def sheet_bundle(stage, base, L):
 
 
 def t_frame(stage, base, L):
-    """3 G1 load: welded jig frame of 80 mm square tube, safety yellow, with locator posts on base plates."""
+    """3 G1 load: welded jig frame of 80 x 144 mm tube, safety yellow, with locator plates, pins and bolts."""
     yellow, plate = L.pbr('Safety_Yellow', (.93, .69, .06), .38), L.base('Metals', 'Steel_Carbon')
     pin, bolt = L.base('Metals', 'Steel_Stainless'), L.base('Metals', 'Steel_Blued')
-    z0, z1 = -.08, 0.
+    z0, z1 = -.08, .064  # rectangular tube, tall enough that the side grips meet steel over the palm height
     tubes = [((-.56, .25), (.56, .33)), ((-.56, -.23), (.56, -.15)),        # crossbar front and back rails
              ((-.56, -.15), (-.48, .25)), ((.48, -.15), (.56, .25)),        # crossbar ends
              ((-.40, -.15), (-.32, .25)), ((.32, -.15), (.40, .25)),        # cross members under the side grips
@@ -161,37 +222,72 @@ def t_frame(stage, base, L):
     for i, ((x0, y0), (x1, y1)) in enumerate(tubes):
         box(stage, f'{base}/tube{i}', (x0, y0, z0), (x1, y1, z1), yellow)
     for i, (x, y) in enumerate([(-.52, .29), (.52, .29), (-.36, .05), (.36, .05), (-.22, -.65), (.22, -.65), (0, -.30)]):
-        box(stage, f'{base}/pad{i}', (x - .055, y - .04 if abs(y) > .2 else y - .055, z1), (x + .055, y + .04 if abs(y) > .2 else y + .055, z1 + .012), plate)
-        box(stage, f'{base}/post{i}', (x - .025, y - .025, z1 + .012), (x + .025, y + .025, .068), plate)
-        cyl(stage, f'{base}/pin{i}', (x, y, .074), .012, .012, pin)
+        box(stage, f'{base}/pad{i}', (x - .055, y - .04 if abs(y) > .2 else y - .055, z1), (x + .055, y + .04 if abs(y) > .2 else y + .055, z1 + .01), plate)
+        cyl(stage, f'{base}/pin{i}', (x, y, z1 + .013), .012, .006, pin)
         for j, (bx, by) in enumerate([(-.04, -.025), (.04, -.025), (-.04, .025), (.04, .025)]):
-            cyl(stage, f'{base}/bolt{i}_{j}', (x + bx, y + by, z1 + .015), .008, .006, bolt)
+            cyl(stage, f'{base}/bolt{i}_{j}', (x + bx, y + by, z1 + .013), .008, .006, bolt)
 
 
-def workstand(stage, base, half, height, L):
-    """Delivery stand: welded dark-steel workstand in the old stand's box (half x, half y, full height)."""
+def low_table(stage, base, half, height, L):
+    """Tote surface: a low wide steel-frame table with a plywood top and a lower shelf."""
     sx, sy = half
-    dark, top = L.pbr('Stand_Paint', (.13, .14, .15), .42, .35), L.base('Metals', 'Steel_Carbon')
-    box(stage, base + '/top', (-sx, -sy, height - .016), (sx, sy, height), top)
-    leg, foot = .035, .06
+    frame, wood = L.pbr('Stand_Paint', (.13, .14, .15), .42, .35), L.base('Wood', 'Plywood')
+    box(stage, base + '/top', (-sx, -sy, height - .025), (sx, sy, height), wood)
+    box(stage, base + '/shelf', (-sx + .02, -sy + .02, .10), (sx - .02, sy - .02, .118), wood)
     for i, (ax, ay) in enumerate([(-1, -1), (1, -1), (-1, 1), (1, 1)]):
-        cx, cy = ax * (sx - foot / 2), ay * (sy - foot / 2)
-        box(stage, f'{base}/foot{i}', (cx - foot / 2, cy - foot / 2, 0), (cx + foot / 2, cy + foot / 2, .008), top)
-        box(stage, f'{base}/leg{i}', (cx - leg / 2, cy - leg / 2, .008), (cx + leg / 2, cy + leg / 2, height - .016), dark)
-    for k, z in enumerate((.12, height * .55)):
-        for s in (-1, 1):
-            box(stage, f'{base}/rail_x{k}{"np"[s > 0]}', (-sx + .01, s * (sy - foot / 2) - .012, z), (sx - .01, s * (sy - foot / 2) + .012, z + .03), dark)
-            box(stage, f'{base}/rail_y{k}{"np"[s > 0]}', (s * (sx - foot / 2) - .012, -sy + .01, z), (s * (sx - foot / 2) + .012, sy - .01, z + .03), dark)
+        cx, cy = ax * (sx - .025), ay * (sy - .025)
+        box(stage, f'{base}/leg{i}', (cx - .02, cy - .02, 0), (cx + .02, cy + .02, height - .025), frame)
 
 
-def author_payload(stage, body_path, body_name, L):
+def sheet_rack(stage, base, half, height, L):
+    """Steel-sheet surface: a pallet of sheets on a low rack; the stack top is the placement height."""
+    sx, sy = half
+    frame, wood = L.pbr('Rack_Blue', (.12, .27, .45), .4, .3), L.base('Wood', 'Timber')
+    sheet = L.pbr('Galvanized_Sheet', (.70, .72, .74), .36, .65)
+    deck = height - .25  # rack beams, then a 0.12 m pallet, then 0.13 m of sheets
+    for i, (ax, ay) in enumerate([(-1, -1), (1, -1), (-1, 1), (1, 1)]):
+        cx, cy = ax * (sx - .03), ay * (sy - .03)
+        box(stage, f'{base}/upright{i}', (cx - .03, cy - .03, 0), (cx + .03, cy + .03, deck), frame)
+    for s_, y in enumerate((-sy + .03, sy - .03)):
+        box(stage, f'{base}/beam{s_}', (-sx, y - .035, deck - .08), (sx, y + .035, deck), frame)
+    for i, x in enumerate(np.linspace(-sx + .06, sx - .06, 3)):  # pallet: blocks and deck boards
+        box(stage, f'{base}/pallet_block{i}', (x - .05, -sy + .02, deck), (x + .05, sy - .02, deck + .08), wood)
+    for i, y in enumerate(np.linspace(-sy + .06, sy - .06, 6)):
+        box(stage, f'{base}/pallet_board{i}', (-sx + .01, y - .045, deck + .08), (sx - .01, y + .045, deck + .12), wood)
+    rng = np.random.default_rng(3)
+    z = deck + .12
+    for i in range(11):
+        dx, dy = rng.uniform(-.004, .004, 2)
+        top = height if i == 10 else z + .0104
+        box(stage, f'{base}/sheet{i:02d}', (-sx + .012 + dx, -sy + .012 + dy, z), (sx - .012 + dx, sy - .012 + dy, top), sheet)
+        z = top + .0014
+
+
+def workbench(stage, base, half, height, L):
+    """T-frame surface: a wide welded workbench with a steel top plate, apron, lower shelf and a vise."""
+    sx, sy = half
+    frame, top = L.pbr('Bench_Green', (.16, .3, .24), .4, .3), L.base('Metals', 'Steel_Carbon')
+    box(stage, base + '/top', (-sx, -sy, height - .02), (sx, sy, height), top)
+    box(stage, base + '/apron', (-sx + .02, -sy + .02, height - .10), (sx - .02, sy - .02, height - .02), frame)
+    box(stage, base + '/shelf', (-sx + .04, -sy + .04, .16), (sx - .04, sy - .04, .175), top)
+    for i, (ax, ay) in enumerate([(-1, -1), (1, -1), (-1, 1), (1, 1)]):
+        cx, cy = ax * (sx - .04), ay * (sy - .04)
+        box(stage, f'{base}/leg{i}', (cx - .03, cy - .03, 0), (cx + .03, cy + .03, height - .10), frame)
+        box(stage, f'{base}/foot{i}', (cx - .045, cy - .045, 0), (cx + .045, cy + .045, .01), top)
+
+
+def author_payload(stage, body_path, body_name, L, back=True):
     base = body_path + '/look'
     UsdGeom.Xform.Define(stage, base)
-    {'sofa_payload': tote, 'crate_payload': sheet_bundle, 'frame_payload': t_frame}[body_name](stage, base, L)
+    if body_name == 'sofa_payload':
+        tote(stage, base, L, back)
+    else:
+        {'crate_payload': sheet_bundle, 'frame_payload': t_frame}[body_name](stage, base, L)
 
 
 def author_stand(stage, parent_path, name, pos, size, L):
     """pos and size are the MuJoCo box geom's center and half sizes (world frame, no rotation)."""
     base = f'{parent_path}/{name}_look'
     UsdGeom.Xform.Define(stage, base).AddTranslateOp().Set(Gf.Vec3d(float(pos[0]), float(pos[1]), 0.))
-    workstand(stage, base, (float(size[0]), float(size[1])), float(2 * size[2]), L)
+    look = {'sofa_delivery_stand': low_table, 'crate_delivery_stand': sheet_rack, 'frame_delivery_stand': workbench}[name]
+    look(stage, base, (float(size[0]), float(size[1])), float(2 * size[2]), L)

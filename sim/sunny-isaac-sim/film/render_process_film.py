@@ -11,12 +11,14 @@ Every stage comes from sim/sunny-scene-recon/data/floor4_static3:
   03 Point cloud    every other depth frame fused at those poses on a 2.5 cm grid (the depth reconstruct.py's TSDF fuses),
                     cropped like site/tools/export_scan.py and shaded like site/engine.js (the site itself draws lidar_map.ply)
   04 Surface mesh   mujoco/scene.obj, the TSDF mesh (reconstruct.py) leveled and textured by build_scene.py
-  05 Collider       the floor plane, wall boxes and CoACD hulls in mujoco/scene.xml (build_scene.py), shown over the raw mesh,
-                    then the raw mesh drops away and the floor plane and 12 wall boxes become clean matte solids
-  06 Simulation     Unitree G1 on the unitree_rl_gym walking policy, simulated in that scene.xml (hulls still collide, not drawn)
+  05 Collider       the floor plane, 12 wall boxes and CoACD hulls in mujoco/scene.xml (build_scene.py), raw, over the raw mesh;
+                    then a cleaned view of them (clean_walls: drift copies dropped, parallel boxes merged, square corners,
+                    the scan's openings kept), labelled on screen as such
+  06 Simulation     Unitree G1 on the unitree_rl_gym walking policy, simulated against the raw scene.xml collider (all 12 boxes and
+                    the hulls) and drawn in the cleaned view; walk_clearance checks the path stays inside it, clear of every wall
 Not pipeline outputs: the clean look (materials, lights, fog, near walls cut away), the camera moves, the sparse sampling, dot thinning and reveal timing, the robot fade-in and the spawn ring.
 """
-import argparse, json, math, os, subprocess, sys
+import argparse, functools, json, math, os, subprocess, sys
 from pathlib import Path
 import numpy as np
 import mujoco
@@ -100,6 +102,7 @@ def in_room(p):  # the same crop as export_scan.py: wall footprint plus 0.3 m, f
             & (p[:, 2] > -0.05) & (p[:, 2] < info["crop_height"]))
 
 
+@functools.lru_cache
 def fused_cloud(every=2, stride=3, voxel=0.025):
     """Every other depth frame at its pose, merged on a voxel grid: the depth reconstruct.py fuses into the TSDF.
     Returns points, normals and the first frame that saw each voxel."""
@@ -242,6 +245,7 @@ def text_mask(s):
 
 
 CAP_MASKS = [(text_mask(f"{k + 1:02d}"), text_mask(label)) for k, (_, label) in enumerate(CAPTIONS)]
+SUB_MASK = pygame.surfarray.array_alpha(pygame.font.Font(FONT, 22).render("Cleaned view of the collider", True, (255,) * 3)).T / 255.0
 
 
 def paint(img, mask, x, y, col, a):
@@ -263,10 +267,120 @@ def caption(img, t):
     num, lab = CAP_MASKS[k]
     paint(img, num, x, y, ACC, a)
     paint(img, lab, x + num.shape[1] + 22, y, INK, a)
+    sub = smooth(t, *T_CLEAN) * (1 - smooth(t, END - 0.6, END))  # the walls from here on are a cleaned visual, say so
+    if sub > 0:
+        paint(img, SUB_MASK, x + num.shape[1] + 22, y + 46, INK * 0.6 + BG * 0.4, sub)
+
+
+# ---------- cleaned view of the collider walls ----------
+def clean_walls(cloud, t=0.1, merge=0.3, snap=0.4, min_gap=0.3):
+    """A cleaned visual of the collider's 12 wall boxes, which build_scene.py fit after the scan drifted into doubled walls
+    (parallel slabs, a rotated copy crossing the room). Walls more than 8 degrees off the room's axes that cross or touch an
+    on-axis wall are those copies and are dropped; parallel walls within `merge` m become one at their median plane; ends
+    within `snap` m of another wall's line meet it square; and a wall stays open wherever the fused depth shows no wall
+    surface for `min_gap` m or more (the doorway, the window). All walls get the tallest scanned wall height.
+    Returns boxes as (center xyz, half sizes, yaw, inward normal xy)."""
+    ws = info["walls"]
+    yaw, half, pos = (np.array([w[k] for w in ws]) for k in ("yaw", "half", "pos"))
+    fold = lambda a: (a + np.pi / 4) % (np.pi / 2) - np.pi / 4  # mod 90 degrees
+    on = np.abs(fold(yaw - yaw[np.argmax(half[:, 1])])) < np.radians(8)
+    th = np.angle((half[on, 1] * np.exp(4j * yaw[on])).sum()) / 4  # room axis: length-weighted, from the on-axis walls
+    R = np.array([[math.cos(th), -math.sin(th)], [math.sin(th), math.cos(th)]])  # room frame -> world
+    along = np.stack([-np.sin(yaw), np.cos(yaw)], 1)
+    ends = np.stack([pos[:, :2] - along * half[:, 1:2], pos[:, :2] + along * half[:, 1:2]], 1)
+    def seg_dist(p, a, b):
+        ab = b - a
+        s = np.clip((p - a) @ ab / (ab @ ab), 0, 1)
+        return np.linalg.norm(p - (a + s[:, None] * ab), axis=1)
+    for i in np.flatnonzero(~on):  # off-axis: a drift copy if it crosses or touches an on-axis wall
+        pts = ends[i, 0] + np.linspace(0, 1, 50)[:, None] * (ends[i, 1] - ends[i, 0])
+        assert min(seg_dist(pts, *ends[j]).min() for j in np.flatnonzero(on)) < merge, f"wall_{i:02d} is off-axis and free"
+    c = pos[:, :2] @ R  # room frame
+    vert = np.abs(np.sin(yaw - th)) < 0.5  # normal along room x: the wall runs along room y
+    walls = []
+    for i in np.flatnonzero(on):  # merge parallel neighbours
+        kind, plane, mid = ("v", c[i, 0], c[i, 1]) if vert[i] else ("h", c[i, 1], c[i, 0])
+        lo, hi = mid - half[i, 1], mid + half[i, 1]
+        for w in walls:
+            if w["kind"] == kind and abs(np.median(w["planes"]) - plane) < merge and lo < w["hi"] + merge and hi > w["lo"] - merge:
+                w["planes"].append(plane); w["lo"], w["hi"] = min(w["lo"], lo), max(w["hi"], hi)
+                break
+        else:
+            walls.append({"kind": kind, "planes": [plane], "lo": lo, "hi": hi})
+    for w in walls:
+        w["plane"] = float(np.median(w["planes"]))
+    height = 2 * half[on, 2].max()
+    joints = []  # square corners: (wall, which end, the other wall's plane, L corner or T)
+    for w in walls:
+        for e in ("lo", "hi"):
+            for o in walls:
+                if o["kind"] != w["kind"] and abs(o["plane"] - w[e]) < snap and o["lo"] - snap < w["plane"] < o["hi"] + snap:
+                    joints.append((w, e, o["plane"], min(abs(o["lo"] - w["plane"]), abs(o["hi"] - w["plane"])) < snap))
+    for w, e, plane, corner in joints:  # horizontal walls run through L corners, everything else stops at the other face
+        out = 1 if e == "hi" else -1
+        w[e] = plane + out * t / 2 * (1 if (w["kind"] == "h" and corner) else -1)
+    pr = cloud[:, :2] @ R
+    centre = POSES[:, :2, 3].mean(0) @ R
+    boxes = []
+    for w in walls:
+        a, b = (0, 1) if w["kind"] == "h" else (1, 0)  # (along, across) room axes
+        k = (np.abs(pr[:, b] - w["plane"]) < 0.12) & (cloud[:, 2] > 0.05) & (cloud[:, 2] < height)
+        edges = np.arange(w["lo"], w["hi"] + 0.05, 0.05)
+        seen = np.histogram(pr[k, a], edges)[0] >= 4
+        cuts, i = [], 1
+        while i < len(seen) - 1:  # interior runs with no wall surface: openings
+            j = i
+            while j < len(seen) - 1 and not seen[j]:
+                j += 1
+            if j - i >= min_gap / 0.05:
+                cuts.append((edges[i], edges[j]))
+            i = j + 1
+        spans = [(w["lo"], w["hi"])]
+        for g0, g1 in cuts:
+            spans = [q for s0, s1 in spans for q in ((s0, min(s1, g0)), (max(s0, g1), s1)) if q[1] - q[0] > 0.05]
+        n = np.zeros(2); n[b] = np.sign(centre[b] - w["plane"])
+        for s0, s1 in spans:
+            m = np.zeros(2); m[a], m[b] = (s0 + s1) / 2, w["plane"]
+            hs = [(s1 - s0) / 2, t / 2, height / 2] if w["kind"] == "h" else [t / 2, (s1 - s0) / 2, height / 2]
+            boxes.append(((*(R @ m), height / 2), hs, th, R @ n))
+        w["cuts"] = cuts
+    print(f"clean walls: room axis {math.degrees(th):.1f} deg, {int((~on).sum())} drift copies dropped, "
+          f"{len(walls)} walls from {int(on.sum())}, openings " + ", ".join(f"{w['kind']}@{w['plane']:.2f}: {g0:.2f}..{g1:.2f}"
+                                                                          for w in walls for g0, g1 in w["cuts"]))
+    return boxes
+
+
+def walk_clearance(boxes, xy):
+    """Smallest gap between the robot's path (pelvis) and a clean wall face, and whether the path stays on the room
+    side of every wall, that is inside the room."""
+    gap, inside = np.inf, True
+    for c, hs, th, n in boxes:
+        c, u = np.asarray(c[:2]), np.array([-n[1], n[0]])  # along the wall
+        s = np.clip((xy - c) @ u, -max(hs[:2]), max(hs[:2]))
+        gap = min(gap, np.linalg.norm(xy - (c + s[:, None] * u), axis=1).min() - min(hs[:2]))
+        inside &= bool(((xy - c) @ n > 0).all())
+    return gap, inside
+
+
+def concrete(n=512, tiles=2):
+    """Dark concrete floor tiles for one square meter (texuniform, texrepeat 1): soft blotches, grain, a tone per tile, thin joints."""
+    rng = np.random.default_rng(3)
+    def blotch(k):  # tileable noise: a k x k random grid, upsampled bilinearly with wraparound
+        g, x = rng.standard_normal((k, k)), np.arange(n) * k / n
+        i, f = x.astype(int), (x - x.astype(int))[:, None]
+        rows = g[i] * (1 - f) + g[(i + 1) % k] * f
+        return rows[:, i] * (1 - f.T) + rows[:, (i + 1) % k] * f.T
+    tile = np.arange(n) * tiles // n
+    v = 0.155 + 0.004 * rng.standard_normal((tiles, tiles))[tile][:, tile] + 0.01 * blotch(6) + 0.006 * blotch(24)
+    v += 0.005 * rng.standard_normal((n, n))
+    joint = (np.arange(n) % (n // tiles) < 2) | (np.arange(n) % (n // tiles) >= n // tiles - 1)
+    v[joint] -= 0.045; v[:, joint] -= 0.045
+    return (np.clip(np.stack([v, v * 1.05, v * 1.04], -1), 0, 1) * 255).astype(np.uint8)
 
 
 # ---------- MuJoCo scene, robot and its walk ----------
-def build_model():
+def build_model(clean=()):
+    """The scan's scene.xml for rendering, the G1 attached at the spawn, and `clean` (clean_walls boxes) as hidden visual-only geoms."""
     xml = (SCAN / "mujoco/scene.xml").read_text()
     d = str(SCAN / "mujoco")
     xml = xml.replace('<compiler angle="radian"/>', f'<compiler angle="radian" meshdir="{d}" texturedir="{d}"/>')
@@ -275,10 +389,8 @@ def build_model():
     xml = xml.replace("<asset>", '<asset>\n    <texture name="grid" type="2d" builtin="flat" mark="edge" rgb1="0.052 0.062 0.062" '
                                  'markrgb="0.16 0.2 0.195" width="400" height="400"/>\n    '
                                  '<material name="grid" texture="grid" texrepeat="2 2" texuniform="true"/>\n    '
-                                 # the clean look: matte light gray walls, a slightly darker floor with a faint grid
-                                 '<texture name="grid_clean" type="2d" builtin="flat" mark="edge" rgb1="0.16 0.172 0.17" '
-                                 'markrgb="0.2 0.215 0.21" width="400" height="400"/>\n    '
-                                 '<material name="floor_clean" texture="grid_clean" texrepeat="2 2" texuniform="true" specular="0" shininess="0"/>\n    '
+                                 # the clean look: matte light gray walls, a darker concrete tile floor (texture added below)
+                                 '<material name="floor_clean" texture="concrete" texrepeat="1 1" texuniform="true" specular="0" shininess="0"/>\n    '
                                  '<material name="wall_clean" rgba="0.8 0.81 0.8 1" specular="0" shininess="0"/>')
     xml = xml.replace("</worldbody>", '  <light name="key" pos="0 0 6" dir="0.45 0.3 -0.85" directional="true" diffuse="0 0 0" castshadow="true"/>\n  </worldbody>')
     xml = xml.replace('<geom name="floor" type="plane" size="0 0 0.05" rgba="0.35 0.35 0.33 1"/>',
@@ -287,6 +399,11 @@ def build_model():
     spec = mujoco.MjSpec.from_string(xml)
     spec.visual.global_.offwidth, spec.visual.global_.offheight = W, H
     spec.visual.rgba.haze = [*(BG / 255), 1]
+    tex = spec.add_texture(name="concrete", type=mujoco.mjtTexture.mjTEXTURE_2D, width=512, height=512, nchannel=3)
+    tex.data = concrete().tobytes()
+    for i, (c, hs, th, _) in enumerate(clean):
+        spec.worldbody.add_geom(name=f"clean_{i:02d}", type=mujoco.mjtGeom.mjGEOM_BOX, size=hs, pos=c, material="wall_clean",
+                                quat=[math.cos(th / 2), 0, 0, math.sin(th / 2)], contype=0, conaffinity=0, group=5)
     cfg = load_g1_config()
     frame = spec.worldbody.add_frame(name="g1_spawn", pos=(SPAWN[0], SPAWN[1], 0))
     spec.attach(mujoco.MjSpec.from_file(str(cfg.robot_xml)), prefix="g1_", frame=frame)
@@ -326,9 +443,16 @@ def simulate(model, cfg):
 
 class Scene:
     def __init__(self):
-        self.model, cfg = build_model()
+        clean = clean_walls(fused_cloud()[0])
+        self.model, cfg = build_model(clean)
         self.data = mujoco.MjData(self.model)
         self.traj, self.base = simulate(self.model, cfg)
+        gap, inside = walk_clearance(clean, self.traj[:, self.base:self.base + 2])
+        print(f"walk vs clean walls: {gap:.2f} m to the nearest face, inside the room: {inside}")
+        assert gap > 0.25 and inside, "the cleaned walls cut into the robot's walk"
+        self.clean_c = np.array([c[:2] for c, _, _, _ in clean])
+        self.clean_n = np.array([n for _, _, _, n in clean])
+        self.clean_len = np.array([max(hs[:2]) for _, hs, _, _ in clean])
         m = self.model  # fog is baked into the GL context, so set it before the renderer exists: floor fades into the page
         m.vis.rgba.fog = [*(BG / 255), 1]
         m.vis.map.fogstart, m.vis.map.fogend = 5.5 / m.stat.extent, 11.0 / m.stat.extent
@@ -338,12 +462,10 @@ class Scene:
         self.opt.sitegroup[:] = 0
         m = self.model
         mat = lambda name: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, name)
-        self.walls = np.array([(m.geom(g).name or "").startswith("wall_") for g in range(m.ngeom)])
+        name = lambda g: m.geom(g).name or ""
+        self.walls = np.array([name(g).startswith("wall_") for g in range(m.ngeom)])  # the raw collider boxes
+        self.clean = np.flatnonzero([name(g).startswith("clean_") for g in range(m.ngeom)])
         m.geom_rgba[(m.geom_group == 2) | self.walls] = [*(ACC / 255), 0.42]
-        d = mujoco.MjData(m); mujoco.mj_forward(m, d)
-        self.wall_c = d.geom_xpos[self.walls, :2]
-        nrm = d.geom_xmat[self.walls].reshape(-1, 3, 3)[:, :2, 0]  # box x axis = wall normal (build_scene.py)
-        self.wall_n = nrm * np.sign(((POSES[:, :2, 3].mean(0) - self.wall_c) * nrm).sum(1))[:, None]  # into the room
         self.floor = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor")
         self.grid, self.floor_clean, self.wall_clean = mat("grid"), mat("floor_clean"), mat("wall_clean")
         self.key = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_LIGHT, "key")
@@ -355,22 +477,32 @@ class Scene:
         q = self.traj[min(max(int(round((t - SIM0) * FPS)), 0), len(self.traj) - 1)]
         return q[self.base:self.base + 2]
 
+    def cutaway(self, cam_xy, targets, margin=0.5):
+        """Opacity per clean wall: 0 where the wall stands between the camera and a target (the room centre, the robot),
+        counting `margin` m past its ends; fades as the sightline nears an end. The dollhouse view the raw mesh had."""
+        keep = np.ones(len(self.clean))
+        u = np.stack([-self.clean_n[:, 1], self.clean_n[:, 0]], 1)
+        for tgt in targets:
+            d = tgt - cam_xy
+            s = ((self.clean_c - cam_xy) * self.clean_n).sum(1) / (self.clean_n @ d)  # where the sightline meets each wall line
+            along = np.abs(((cam_xy + s[:, None] * d - self.clean_c) * u).sum(1))
+            keep = np.minimum(keep, np.where((s > 0) & (s < 1), 1 - smooth(self.clean_len + margin - along, 0, margin), 1))
+        return keep
+
     def render(self, t, groups, cam, dim=0.0, clean=False):
-        """clean: wall boxes as matte light gray solids, the lighter floor grid, a soft key light, fog into the page color."""
+        """clean: the cleaned walls as matte light gray solids, the concrete floor, a soft key light, fog into the page color."""
         m = self.model
         q = self.traj[min(max(int(round((t - SIM0) * FPS)), 0), len(self.traj) - 1)]
         self.data.qpos[:] = q
         mujoco.mj_forward(m, self.data)
         m.mat_rgba[self.scan_mat] = self.scan_rgba * [1 - dim, 1 - dim, 1 - dim, 1]
-        m.geom_matid[self.walls] = self.wall_clean if clean else -1
-        m.geom_rgba[self.walls] = m.mat_rgba[self.wall_clean] if clean else [*(ACC / 255), 0.42]
-        m.geom_group[self.walls] = 3
-        if clean:  # dollhouse cutaway, as the raw mesh culls its back faces: walls between the camera and the room fade out
-            to_cam = free_cam(*cam)[0][:2] - self.wall_c
-            keep = smooth((self.wall_n * to_cam).sum(1) / np.linalg.norm(to_cam, axis=1), -0.4, 0.0)
-            idx = np.flatnonzero(self.walls)
-            m.geom_rgba[idx, 3] = keep
-            m.geom_group[idx[keep < 0.02]] = 5
+        m.geom_group[self.walls] = 5 if clean else 3  # raw collider boxes, or their cleaned view
+        m.geom_group[self.clean] = 3 if clean else 5
+        if clean:  # walls between the camera and the room or robot fade out
+            keep = self.cutaway(free_cam(*cam)[0][:2], [POSES[:, :2, 3].mean(0), self.robot_xy(t)])
+            m.geom_rgba[self.clean] = m.mat_rgba[self.wall_clean]
+            m.geom_rgba[self.clean, 3] = keep
+            m.geom_group[self.clean[keep < 0.02]] = 5
         m.geom_matid[self.floor] = self.floor_clean if clean else self.grid
         m.light_diffuse[:] = self.lights[0]
         m.vis.headlight.diffuse[:], m.vis.headlight.ambient[:] = self.lights[1], self.lights[2]

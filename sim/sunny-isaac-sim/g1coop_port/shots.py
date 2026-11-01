@@ -6,23 +6,54 @@ import numpy as np
 FPS = 30
 # name, sim start s, sim end s, caption, tracked body (None = fixed lookat), focal length mm
 SHOTS = [
-    ('Overview', 0, 12, 'FLEXIBLE METALWORKS | 20 robots, one MuJoCo world, rendered in Isaac Sim RTX', None, 14.2),
-    ('ThreeG1', 0, 11, '3 G1s | welded steel T-frame jig, about 2 m', 'frame_payload', 20.0),
-    ('TwoG1', 3, 13, '2 G1s | strapped steel sheet bundle on wooden runners', 'crate_payload', 20.0),
-    ('OneG1', 0, 6, '1 G1 | KLT tote of steel brackets, side grip and placement', 'sofa_payload', 20.0),
+    ('Overview', 0, 10, 'FLEXIBLE METALWORKS | 20 robots, one MuJoCo world, rendered in Isaac Sim RTX', None, 14.2),
+    ('ThreeG1', 5, 17, '3 G1s | welded steel T-frame jig, side grip, onto a workbench', 'frame_payload', 20.0),
+    ('TwoG1', 7, 18, '2 G1s | strapped steel sheet bundle, side grip, onto a sheet stack', 'crate_payload', 20.0),
+    ('OneG1', 0, 5, '1 G1 | KLT tote of steel parts, side grip, onto a low table', 'sofa_payload', 20.0),
     # close-up clips of each carry, rendered as their own videos
-    ('ThreeG1Close', 0, 12, '3 G1s | welded steel T-frame jig, close-up', 'frame_payload', 28.0),
-    ('TwoG1Close', 1, 14, '2 G1s | strapped steel sheet bundle, close-up', 'crate_payload', 28.0),
-    ('OneG1Close', 0, 11, '1 G1 | KLT tote of steel brackets, close-up', 'sofa_payload', 28.0),
+    ('ThreeG1Close', 4, 18, '3 G1s | welded steel T-frame jig, side grip, close-up', 'frame_payload', 28.0),
+    ('TwoG1Close', 5, 19, '2 G1s | strapped steel sheet bundle, side grip, close-up', 'crate_payload', 28.0),
+    ('OneG1Close', 0, 10, '1 G1 | KLT tote of steel parts, side grip, close-up', 'sofa_payload', 28.0),
+    # one close-up per factory section (fixed look-at points, slow orbit; camera definitions only)
+    ('CNCArm', 0, 8, 'C1 MACHINING | UR5e loads and unloads the CNC', None, 24.0),
+    ('CleaningArm', 4, 14, 'D1 CLEANING | UR5e at the deburr bench', None, 24.0),
+    ('AssemblyArm', 0, 6, 'E1 ASSEMBLY | Panda stacks two components', None, 24.0),
+    ('QCPanda', 10, 20, 'F1 QUALITY | TurtleBot hands a part to the QC Panda', None, 24.0),
+    ('PackagingArm', 0, 6, 'G1 PACKING | UR10e places two boxes', None, 24.0),
+    ('TwoArmPanel', 3, 9, 'G1 PACKING | two UR10e arms carry one panel', None, 24.0),
+    ('CourierLanes', 0, 12, 'MAIN AISLE | couriers on their routes', None, 18.0),
+    ('SpotInspection', 2, 14, 'INSPECTION | Spot walks its route', None, 24.0),
+    ('SpotQuality', 2, 14, 'QUALITY AREA | second Spot on its route', None, 24.0),
+    ('Shelving', 0, 6, 'A1 RECEIVING | stocked rack bays', None, 20.0),
+    ('Dock', 0, 6, 'H1 SHIPPING | finished goods at the dock door', None, 20.0),
 ]
 FILM = ['Overview', 'ThreeG1', 'TwoG1', 'OneG1']
+SECTIONS = ['ThreeG1Close', 'TwoG1Close', 'OneG1Close', 'CNCArm', 'CleaningArm', 'AssemblyArm', 'QCPanda',
+            'PackagingArm', 'TwoArmPanel', 'CourierLanes', 'SpotInspection', 'SpotQuality', 'Shelving', 'Dock']
+# fixed shots: look-at point (world m), distance, azimuth at s = 0, azimuth change per s, elevation
+FIXED = {
+    'CNCArm': ((-5.6, 3.7, 1.0), 3.4, 62, 1.5, -24),
+    'CleaningArm': ((-5.0, -3.9, .95), 3.2, 195, -1.0, -30),  # from the east: the extraction duct blocks the aisle side
+    'AssemblyArm': ((1.5, -4.6, .95), 2.8, 280, -1.5, -28),
+    'QCPanda': ((4.4, 3.7, .9), 2.8, 60, 1.0, -24),
+    'PackagingArm': ((9.1, 4.2, 1.0), 3.2, 60, 1.5, -26),
+    'TwoArmPanel': ((9.55, 4.2, 1.0), 4.8, 141, -2.0, -28),
+    'CourierLanes': ((0., 1.5, .3), 8.5, 95, 1.0, -32),
+    'SpotInspection': ((-.3, -.9, .45), 3.6, 116, 1.0, -22),
+    'SpotQuality': ((6.5, 5.0, .45), 3.6, 71, 1.0, -22),
+    'Shelving': ((-8.5, 5.6, 1.2), 6.0, 80, 1.0, -15),
+    'Dock': ((12.3, -3.5, 1.3), 6.0, 342, 1.0, -14),
+}
 CREDIT = 'Depot: Rafi Abdullah & Louise Poubel / Open Robotics, CC-BY-4.0; robots: roqsim / MuJoCo Menagerie'
 
 
 def orbit(name, s, look):
     """(lookat, distance, azimuth, elevation) at sim time s for a shot."""
+    if name in FIXED:
+        lookat, dist, az, daz, el = FIXED[name]
+        return lookat, dist, az + daz * s, el
     if name == 'Overview':
-        u = min(s / 12., 1.)
+        u = min(s / 10., 1.)
         u = u * u * (3 - 2 * u)
         return (0, .3 + .2 * (1 - u), .6), 25.5 - 4.5 * u, 112 - 30 * u, -40 - 12 * u
     if name == 'ThreeG1':
@@ -78,4 +109,6 @@ if __name__ == '__main__':  # self-check: azimuth 90 looks along +y, as in MuJoC
     assert d[2] < 0 and abs(np.degrees(np.arctan2(d[1], d[0])) - 90) < 1e-6, d
     assert 20 <= sum(e - s for n, s, e, *_ in SHOTS if n in FILM) <= 40
     assert all(10 <= e - s <= 15 for n, s, e, *_ in SHOTS if n.endswith('Close'))
+    assert all(n in FIXED for n, *_, body, _ in SHOTS if body is None and n != 'Overview')
+    assert set(SECTIONS) <= {n for n, *_ in SHOTS}
     print('ok')

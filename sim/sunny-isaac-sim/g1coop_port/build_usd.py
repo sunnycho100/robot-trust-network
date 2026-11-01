@@ -207,7 +207,8 @@ for i in range(m.ngeom):
 
 looks = props.Looks(stage)
 for b in sorted({b for b, _ in replaced if b}):
-    props.author_payload(stage, str(body_prims[b].GetPath()), m.body(b).name, looks)
+    live_back = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, 'sofa_sofa_back') >= 0 and m.geom_contype[m.geom('sofa_sofa_back').id] > 0
+    props.author_payload(stage, str(body_prims[b].GetPath()), m.body(b).name, looks, back=live_back)
 for b, i in replaced:
     if not b:
         props.author_stand(stage, str(body_prims[b].GetPath()), m.geom(i).name, m.geom_pos[i], m.geom_size[i], looks)

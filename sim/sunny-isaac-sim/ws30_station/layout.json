@@ -1,0 +1,307 @@
+{
+ "name": "CarDA WS30 station (Stellantis Melfi lab line), rebuilt from video",
+ "credit": "CarDA dataset, CC BY 4.0 (Zenodo 10.5281/zenodo.14644367)",
+ "frame": "CarDA plant frame from cameras_calibration.xlsx: x along the line WS10 -> WS30 (= belt travel), y across the line towards the IN cameras, z up, floor and belt surface z = 0. Metres, seconds, degrees.",
+ "how_measured": "Floor positions: real-video pixels projected to z = 0 with the CarDA calibration (both cameras agree within 0.1 m). Heights and object depth: Depth Anything V2 Metric Indoor on a Colab L4, rescaled to the calibrated floor (scale 0.67 to 0.71, floor residual 1 cm median). Worker: Xsens BVH registered to 7 feet picks (residual 0.01 to 0.19 m). Sizes not visible are guesses and say so.",
+ "time": "t = 0 at the start of CarDA WS30 cycle 003 (mp4 and BVH start together, 54.4 s of mocap).",
+ "conveyor": {
+  "type": "floor-flush slat conveyor the worker walks on (guess: skillet or slat 'pedana' conveyor; make unknown)",
+  "belt_x": [
+   0.0,
+   19.1
+  ],
+  "belt_y": [
+   1.95,
+   3.83
+  ],
+  "surface_z": 0.0,
+  "edge_strips_y": [
+   [
+    1.75,
+    1.95
+   ],
+   [
+    3.83,
+    3.98
+   ]
+  ],
+  "edge_strip": "yellow with black teeth, white pitch ticks every 0.3 m on the belt",
+  "lane_lines_x": [
+   9.236,
+   12.166,
+   15.096,
+   18.026
+  ],
+  "speed_mps": 0.0239,
+  "direction": [
+   1,
+   0,
+   0
+  ],
+  "speed_source": "robot_consult_demo s1 phase correlation (WS30 23.9 mm/s); castor track in this video gives 22.4 mm/s",
+  "marks_note": "lane lines (pitch 2.93 m), slats and white ticks are on the belt and move with it: x(t) = x(0) + 0.0239 t; lane_lines_x is at t = 0 (seen at 15.12 and 18.05 at t = 1 s)"
+ },
+ "platform": {
+  "type": "blue anti-slip tread plates, flush with the belt ('PORTATA AL PASSO KG 3000')",
+  "x": [
+   0.0,
+   19.65
+  ],
+  "y": [
+   0.3,
+   5.75
+  ],
+  "z": 0.0
+ },
+ "carrier": {
+  "type": "door trolley: aluminium strut-profile frame (guess: 45 mm Bosch Rexroth or item profile) on 4 swivel castors, door held upright",
+  "pose_t0": {
+   "x": 13.093,
+   "y": 3.145,
+   "yaw_deg": 0.0
+  },
+  "motion": "x(t) = 13.093 + 0.0239 t, y and yaw fixed (it rides the belt)",
+  "castors_local": [
+   [
+    -0.605,
+    -0.225
+   ],
+   [
+    0.605,
+    -0.225
+   ],
+   [
+    -0.605,
+    0.225
+   ],
+   [
+    0.605,
+    0.225
+   ]
+  ],
+  "castor_source": "OUT-side castors at plant (13.08, 2.92) and (14.30, 2.92), IN-side castor (14.31, 3.37) at t = 25 s",
+  "frame_size_local": {
+   "x": [
+    -0.68,
+    0.68
+   ],
+   "y": [
+    -0.28,
+    0.28
+   ],
+   "z_top": 0.97
+  },
+  "klt_bins_local": [
+   {
+    "center": [
+     0.78,
+     -0.12,
+     0.92
+    ],
+    "size": [
+     0.4,
+     0.3,
+     0.147
+    ],
+    "note": "downstream shelf, holds the speakers (annotation 1.1 'take the speaker from the cart')"
+   },
+   {
+    "center": [
+     -0.84,
+     -0.12,
+     1.07
+    ],
+    "size": [
+     0.4,
+     0.3,
+     0.147
+    ],
+    "note": "upstream shelf"
+   }
+  ],
+  "trim_panel_local": {
+   "center": [
+    -0.95,
+    -0.26,
+    0.5
+   ],
+   "size": [
+    0.6,
+    0.03,
+    0.8
+   ],
+   "tilt_deg": 30,
+   "note": "slanted black panel at the upstream end (likely the door trim panel kit, guess)"
+  }
+ },
+ "door": {
+  "type": "black front door with window frame, inner side facing +y (the worker). Guess: Jeep Renegade or Fiat 500X (Melfi models)",
+  "local": {
+   "x": [
+    -0.79,
+    0.41
+   ],
+   "y_center": -0.05,
+   "thickness": 0.12,
+   "z_bottom": 0.75,
+   "z_beltline": 1.3,
+   "z_top": 1.93
+  },
+  "speaker_local": {
+   "center": [
+    0.0,
+    0.01,
+    0.95
+   ],
+   "radius": 0.085,
+   "screws": 4,
+   "source": "worker's hands dwell here during annotation 1.4 'fix 4 screws on the speaker' (t 26 to 50 s)"
+  }
+ },
+ "worker_zone": {
+  "feet_local_x": [
+   -0.3,
+   0.3
+  ],
+  "feet_y_plant": [
+   3.55,
+   3.78
+  ],
+  "note": "on the belt, IN side of the door, 0.5 to 0.7 m from the door face; rides with the carrier from t = 12 s",
+  "line_side_trip": {
+   "t_s": [
+    7.5,
+    11.0
+   ],
+   "feet_plant": [
+    14.8,
+    4.83
+   ],
+   "what": "takes the screwdriver from the rack (annotation 1.3)"
+  }
+ },
+ "line_side": {
+  "screwdriver_rack": {
+   "center": [
+    15.22,
+    5.3
+   ],
+   "size": [
+    0.6,
+    0.45,
+    1.85
+   ],
+   "type": "white tube-and-joint rack (guess: lean pipe system like Trilogiq or Creform)",
+   "tool": "cordless pistol screwdriver, orange and black (make unknown, guess Desoutter or Atlas Copco battery tool)"
+  },
+  "desk_in_side": {
+   "center": [
+    13.9,
+    6.1
+   ],
+   "size": [
+    1.6,
+    0.8,
+    0.76
+   ]
+  },
+  "desks_out_side": {
+   "center": [
+    13.7,
+    -0.35
+   ],
+   "size": [
+    2.6,
+    0.8,
+    0.76
+   ]
+  },
+  "monitor_cart_out_side": {
+   "center": [
+    15.35,
+    -0.05
+   ],
+   "size": [
+    0.6,
+    0.6,
+    1.6
+   ]
+  },
+  "electrical_cabinet": {
+   "center": [
+    18.8,
+    0.0
+   ],
+   "size": [
+    0.9,
+    0.5,
+    1.1
+   ]
+  },
+  "checkerboard_stand": {
+   "center": [
+    16.4,
+    5.52
+   ],
+   "board_size": [
+    0.6,
+    0.85
+   ],
+   "board_z": [
+    0.7,
+    1.55
+   ],
+   "faces": "-y (OUT camera)",
+   "note": "hangs just behind the IN camera rod: the OUT camera sees it under the IN camera, the IN camera does not see it"
+  },
+  "gantry_posts": [
+   [
+    17.31,
+    4.81
+   ],
+   [
+    17.46,
+    0.89
+   ]
+  ],
+  "gantry_post_height": 2.6,
+  "gantry_beams": "blue box beams from each post top towards +x, 3 m (guess: light crane runway such as Demag KBK)"
+ },
+ "cameras": "cameras_ws30.json (ZED 2, 1280x720 left image, on 1.85 m rods): IN (16.09, 5.44, 1.80) looking -y, OUT (15.92, 0.30, 1.80) looking +y",
+ "automation_anchors_proposed": {
+  "note": "Not in the video; suggested for the automated version so arms stay off the worker lane and the belt.",
+  "rail_in_side": {
+   "y": 4.45,
+   "x": [
+    11.5,
+    18.5
+   ],
+   "z": 0.0,
+   "faces": "-y"
+  },
+  "rail_out_side": {
+   "y": 1.25,
+   "x": [
+    11.5,
+    18.5
+   ],
+   "z": 0.0,
+   "faces": "+y"
+  },
+  "humanoid_stand_in_side": {
+   "y": 3.65,
+   "x_rel_carrier": [
+    -0.4,
+    0.4
+   ]
+  },
+  "humanoid_stand_out_side": {
+   "y": 2.55,
+   "x_rel_carrier": [
+    -0.6,
+    0.6
+   ],
+   "note": "belt, OUT side of the trolley; reaches the door's outer skin only"
+  }
+ }
+}

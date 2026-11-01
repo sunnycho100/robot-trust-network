@@ -1,5 +1,6 @@
 """Run Seohee's factory (plant_view) unchanged, headless, and record every body pose at 30 fps.
 Usage: PYTHONPATH=<g1_cooperative_task>/sim/mujoco_houses/src python record_mujoco.py OUT_DIR [--duration 40]
+       [--layout realistic_layout_v3.json]   (a variant layout; also enables the side_grip scenarios)
 Writes OUT_DIR/plant.mjb (compiled model, meshes and textures inside), plant.xml (spec.to_xml),
 poses.npz (xpos, xquat, geom rgba per frame) and report.json (their own physics report).
 """
@@ -15,7 +16,12 @@ from unitree_demo.flexible_factory import plant_scene, plant_view
 p = argparse.ArgumentParser()
 p.add_argument('out', type=Path)
 p.add_argument('--duration', type=float, default=40.)
+p.add_argument('--layout', type=Path, help='variant of factory/realistic_layout.json')
 a = p.parse_args()
+if a.layout:
+    import side_grip
+    side_grip.install()
+    plant_scene.LAYOUT = a.layout.resolve()
 a.out.mkdir(parents=True, exist_ok=True)
 rec = dict(xpos=[], xquat=[], rgba=[], t=[])
 spec_box = {}
