@@ -812,7 +812,8 @@ def _text(img, lines, color=(255, 255, 255)):
     return img
 
 
-def render_run(S, policy, after, draw, every=0.2, hide_robot=False, asis=False, t_end=None, label=None, high=False):
+def render_run(S, policy, after, draw, every=0.2, hide_robot=False, asis=False, t_end=None, label=None, high=False,
+               clean=False):
     """Frames (list of RGB arrays) of one run sampled every `every` s of cycle time, plus its KPIs."""
     sim = Sim(S)
     seed = SEEDS[draw]
@@ -845,6 +846,9 @@ def render_run(S, policy, after, draw, every=0.2, hide_robot=False, asis=False, 
         img = rend.render()
         sp_ok = d >= S.sp0
         status = "no robot" if hide_robot else f"robot {min(tau, T):5.1f}/{T:.1f} s  {state}"
+        if clean:   # customer-facing: one plain label, no codes or KPIs
+            frames.append(_text(img, [(label, None)]) if label else img.copy())
+            return
         lines = [(label or f"{S.st} {policy} worker {after}", None), (f"t {t:6.1f} s   {status}", None)]
         if not hide_robot:
             lines.append((f"min distance {d:+.2f} m  " + ("clear" if sp_ok else "inside SSM distance"),
@@ -871,10 +875,12 @@ def cmd_video(a):
 def cmd_sidebyside(a):
     """Left: worker alone, as-is (observed motion, no robot). Right: to-be worker plus robot under a policy."""
     S = Station(Path(a.rcd), a.option, a.station)
+    ll = "Worker alone" if a.clean else f"{a.station}  worker alone (as-is, observed motion)"
+    lr = "Worker + robot arm" if a.clean else f"{a.station}  worker + M0617 ({a.policy}), kitting halves walking"
     L, _ = render_run(S, "P1", "leaves", a.draw, every=a.every, hide_robot=True, asis=True, t_end=a.t_end,
-                       label=f"{a.station}  worker alone (as-is, observed motion)", high=True)
-    Rf, kr = render_run(S, a.policy, a.after, a.draw, every=a.every, t_end=a.t_end,
-                        label=f"{a.station}  worker + M0617 ({a.policy}), kitting halves walking", high=True)
+                      label=ll, high=True, clean=a.clean)
+    Rf, kr = render_run(S, a.policy, a.after, a.draw, every=a.every, t_end=a.t_end, label=lr, high=True,
+                        clean=a.clean)
     n = max(len(L), len(Rf))
     v = VideoOut(a.out, 1920, 540, 25)
     for i in range(n):
@@ -982,6 +988,7 @@ def main():
     ap.add_argument("--walk", nargs="*", type=float, default=[0.5], help="workeronly: walk factors")
     ap.add_argument("--append", action="store_true", help="workeronly: append to an existing results_<OPT>.csv")
     ap.add_argument("--inputs", nargs="*", help="compare: results_<OPT>.csv files")
+    ap.add_argument("--clean", action="store_true", help="sidebyside: plain labels only, no codes or KPIs")
     ap.add_argument("--out")
     a = ap.parse_args()
     if a.cmd in ("video", "sidebyside"):
