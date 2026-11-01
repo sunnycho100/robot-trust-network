@@ -9,6 +9,8 @@ from the PDF's numbers, Doosan's M0617 URDF and CarDA's XSens mocap. Analysis an
 | `carda_cell.py` | M0617 on a pedestal and track, door box fitted to the worker's screw points, worker as bone capsules from the BVH, IK waypoints joined in joint space, P1 / P1s / P2 / P3 interlocks, capsule distance and ISO/TS 15066 SSM KPIs, optional video. `--selfcheck` runs without data. |
 | `g1_cell.py` | Our G1 (Unitree's published walking policy, as in `sim/mujoco_houses`) takes the worker's place: walks to the door, holds 4 s, leaves; the arm runs P2 or P1. |
 | `colab_job.sh` | The Colab L4 run: KPI matrix, three replay videos, two G1 videos. |
+| `option_runner.py` | v3 request (`SIM_OPTIONS_ABC.md`) on the teammate's real option packages: P1, P2, P3 x worker stays or leaves x 30 common-random-number draws, writes `results_<OPT>.csv`, `summary.json`, `robot_task_times.json`, `seeds.json`; `baseline`, `video`, `sidebyside`, `contrast`, `workeronly` (option A, worker-only stations), `compare` (A, B, C on the same draws), `selfcheck` subcommands. Results stay out of git, in `docs/evidence/carda/option_c/` and `options_abc/`. |
+| `option_colab.sh` | Colab job for it: CarDA download, their pipeline and option export, the 540 runs, contrast and videos. |
 
 ## Colab
 
