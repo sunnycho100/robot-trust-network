@@ -1,6 +1,7 @@
 #!/bin/bash
 # Look-pass HQ clip of one shot at 1080p, no overlay; resumes into an existing frame folder after a crash.
 # Usage (on the host): bash hq_clip.sh SHOT NAME   e.g. bash hq_clip.sh TwoG1Close close_2g1_sheets_v3_hq
+# Faster (32 samples per pixel instead of 192): SPP=8 MBLUR=2 bash hq_clip.sh SHOT NAME
 # Needs usd_v3/look_hq.usda (record_v3.sh). Stops if under 5 GB disk is free. Frames: hq_NAME/, video: NAME.mp4
 cd "$(dirname "$0")"
 shot=$1; name=$2; F=hq_$name; PY=${VENV:-$PWD/venv}/bin/python
@@ -14,7 +15,7 @@ read -r a b <<< "$($PY -c "import shots; s = next(x for x in shots.SHOTS if x[0]
 echo "$(date +%T) $name: $n frames on disk, rendering sim $a to $b s"
 t=$(date +%s)
 bash in_isaac.sh $F.log /robot/g1coop/render_video.py /robot/g1coop/usd_v3/look_hq.usda /robot/g1coop/$F --mode PathTracing \
-  --shots $shot --span $a $b --first-index $n --hq --no-overlay --dof 60 --mblur 3 --post --size 1920 1080 --spp 32 --subframes 2
+  --shots $shot --span $a $b --first-index $n --hq --no-overlay --dof 60 --mblur ${MBLUR:-3} --post --size 1920 1080 --spp ${SPP:-32} --subframes ${SUB:-2}
 echo "$(date +%T) $name wall $(( $(date +%s) - t )) s"; grep "g1coop\]" $F.log | tail -1
 sudo chown -R "$(id -u):$(id -g)" $F
 n=$(ls $F | wc -l); echo "frames $n"
